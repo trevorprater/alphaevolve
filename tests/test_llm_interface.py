@@ -48,7 +48,7 @@ def test_generate_code_modification_flash():
     ))
     
     # Check that the response matches the expected mock response for flash
-    expected = "<<<<<<<< SEARCH\n# old code example\n========\n# new flash code example\n>>>>>>>> REPLACE"
+    expected = "<<<<<<<< SEARCH\nres += input_x * 2  # Initial logic\n========\nres += input_x * 3  # Mock LLM modified logic\n>>>>>>>> REPLACE"
     assert result == expected
 
 
@@ -65,7 +65,7 @@ def test_generate_code_modification_pro():
     ))
     
     # Check that the response matches the expected mock response for pro
-    expected = "<<<<<<<< SEARCH\n# old code example for pro\n========\n# new pro model suggestion\n>>>>>>>> REPLACE"
+    expected = "<<<<<<<< SEARCH\nres += input_x * 2  # Initial logic\n========\nres += input_x * 5  # Pro model enhanced logic\n>>>>>>>> REPLACE"
     assert result == expected
 
 

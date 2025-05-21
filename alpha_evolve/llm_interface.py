@@ -57,9 +57,9 @@ class LLMInterface:
             
             # Mock responses based on LLM type
             if llm_type == "flash":
-                return "<<<<<<<< SEARCH\n# old code example\n========\n# new flash code example\n>>>>>>>> REPLACE"
+                return "<<<<<<<< SEARCH\nres += input_x * 2  # Initial logic\n========\nres += input_x * 3  # Mock LLM modified logic\n>>>>>>>> REPLACE"
             elif llm_type == "pro":
-                return "<<<<<<<< SEARCH\n# old code example for pro\n========\n# new pro model suggestion\n>>>>>>>> REPLACE"
+                return "<<<<<<<< SEARCH\nres += input_x * 2  # Initial logic\n========\nres += input_x * 5  # Pro model enhanced logic\n>>>>>>>> REPLACE"
             else:
                 # This shouldn't happen due to the earlier validation, but included for completeness
                 raise ValueError(f"Unsupported LLM type: {llm_type}")
