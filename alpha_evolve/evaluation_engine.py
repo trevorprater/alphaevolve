@@ -45,9 +45,9 @@ class EvaluationEngine:
         """
         Evaluate a program code string using the provided evaluation function.
         
-        This method handles the execution of the program code string, passes it to the
-        user-provided evaluation function, and returns the evaluation scores. It also
-        catches and handles any errors that may occur during execution or evaluation.
+        This method executes the program code string in a namespace, then passes
+        the namespace to the user-provided evaluation function. It handles any errors 
+        that may occur during execution or evaluation.
         
         Args:
             program_code_string: The Python code to evaluate as a string.
@@ -87,10 +87,7 @@ class EvaluationEngine:
             
             # Run the evaluation using the EvaluationWrapper
             try:
-                # The user_evaluate_fn could expect either:
-                # 1. The entire namespace containing all defined symbols
-                # 2. A specific function or object defined in the code
-                # We'll pass the local_namespace and let the user_evaluate_fn handle it appropriately
+                # Pass the local namespace to the evaluation wrapper
                 result = self.evaluation_wrapper.run_evaluation(
                     local_namespace,
                     user_evaluate_fn,

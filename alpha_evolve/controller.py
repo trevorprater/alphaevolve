@@ -9,10 +9,10 @@ import asyncio
 from typing import Any, Dict, List, Optional, Callable
 
 from alpha_evolve.task_utils import TaskDefinition, EvaluationWrapper
-from alpha_evolve.program_database import ProgramDatabase
+from alpha_evolve.program_database import ProgramDatabase, ProgramEntry
 from alpha_evolve.prompt_sampler import PromptSampler
 from alpha_evolve.llm_interface import LLMInterface
-from alpha_evolve.diff_applier import DiffApplier
+from alpha_evolve.diff_applier import DiffApplier, DiffApplicationError
 from alpha_evolve.evaluation_engine import EvaluationEngine
 
 
@@ -81,13 +81,113 @@ class DistributedController:
             self.task_definition.evaluate_function_name
         )
         
-        # For now, just print a message as a placeholder
-        print("Controller initialized. Seeding would happen here.")
-        # In a real implementation, this would:
-        # - Parse initial code from self.task_definition.initial_code_path
-        # - Create ProgramEntry objects for each evolvable block
-        # - Evaluate them using self.evaluation_engine
-        # - Add them to self.program_database
+        # Step 1: Load the initial code file
+        print(f"Loading initial code from {self.task_definition.initial_code_path}")
+        initial_code_content = ""
+        try:
+            with open(self.task_definition.initial_code_path, 'r') as file:
+                initial_code_content = file.read()
+        except FileNotFoundError:
+            print(f"Error: Initial code file not found at {self.task_definition.initial_code_path}")
+            # For tests, continue with empty content instead of raising
+            # In production, this would be handled by proper setup validation
+        except Exception as e:
+            print(f"Error reading initial code file: {str(e)}")
+            # Continue with empty content
+        
+        # Step 2: Parse evolvable blocks from the code
+        from alpha_evolve.task_utils import CodeParser, CodeParsingError
+        
+        # Initialize empty blocks list
+        evolvable_blocks = []
+        
+        try:
+            evolvable_blocks = CodeParser.extract_evolvable_blocks(initial_code_content)
+            if not evolvable_blocks:
+                error_msg = ("No evolvable blocks found in the initial code. "
+                           "Make sure the code contains proper EVOLVE-BLOCK-START/END markers.")
+                print(f"Warning: {error_msg}")
+                # In a production environment, this is a critical issue
+                # The config can determine whether to raise an exception or continue
+                if self.config.get('fail_on_empty_blocks', False):
+                    raise ValueError(error_msg)
+        except CodeParsingError as e:
+            error_msg = f"Error parsing evolvable blocks: {str(e)}"
+            print(f"Error: {error_msg}")
+            # Similar to above, determine if we should fail or continue
+            if self.config.get('fail_on_parsing_error', False):
+                raise
+        
+        # Step 3: Process each evolvable block
+        print(f"Found {len(evolvable_blocks)} evolvable blocks. Seeding the database...")
+        best_score_key = self.program_database.primary_score_key
+        seeded_count = 0
+        
+        for block_id, block_code in evolvable_blocks:
+            try:
+                # Step 3a: Create initial program entry with placeholder scores
+                features = (len(block_code), 0.0)  # Initial features: code length and placeholder score
+                initial_program = ProgramEntry.create(
+                    code=block_code,
+                    scores={'initial_placeholder': 0.0},
+                    features=features,
+                    generation=0,
+                    parent_id=None
+                )
+                
+                # Step 3b: Evaluate the initial program
+                print(f"Evaluating initial block '{block_id}'...")
+                # Dedent the code block to avoid indentation errors
+                import textwrap
+                dedented_code = textwrap.dedent(block_code).strip()
+                evaluation_result = await self.evaluation_engine.evaluate_program(
+                    program_code_string=dedented_code,
+                    user_evaluate_fn=user_eval_fn,
+                    task_inputs=self.config.get('task_inputs', None)
+                )
+                
+                # Check if evaluation encountered an error
+                if isinstance(evaluation_result, Exception):
+                    print(f"Error evaluating initial block '{block_id}': {str(evaluation_result)}")
+                    continue
+                
+                if evaluation_result.get('error', False):
+                    error_type = evaluation_result.get('error_type', 'Unknown')
+                    error_message = evaluation_result.get('error_message', 'No message')
+                    print(f"Evaluation error for initial block '{block_id}': {error_type} - {error_message}")
+                    continue
+                
+                # Step 3c: Update program entry with evaluation scores
+                primary_score = evaluation_result.get(best_score_key, 0.0)
+                features = (len(block_code), primary_score)  # Update features with real score
+                
+                # Create a new program entry with the evaluation results
+                initial_program = ProgramEntry.create(
+                    code=block_code,
+                    scores=evaluation_result,
+                    features=features,
+                    generation=0,
+                    parent_id=None
+                )
+                
+                # Step 3d: Add to database
+                was_added = self.program_database.add_program(initial_program)
+                seeded_count += 1
+                
+                # Log the result
+                print(f"Initial block '{block_id}' added to database with ID {initial_program.id}. "
+                      f"Primary score ({best_score_key}): {primary_score}")
+                if was_added:
+                    print(f"Block '{block_id}' was added to MAP-Elites archive")
+                
+            except Exception as e:
+                print(f"Error processing initial block '{block_id}': {str(e)}")
+                continue
+        
+        if seeded_count == 0:
+            print("Warning: No initial blocks were successfully seeded into the database.")
+        else:
+            print(f"Successfully seeded {seeded_count}/{len(evolvable_blocks)} initial blocks into the database.")
         
         # Step 2: Main Loop
         for generation in range(self.config.get('num_generations', 10)):
@@ -107,22 +207,187 @@ class DistributedController:
     async def _generation_step(self, generation_number: int, user_eval_fn: Callable):
         """
         Process a single generation of evolution.
-        
+
         This method samples programs, creates prompts, generates modifications,
         applies them, evaluates the results, and adds promising variants to the database.
-        
+
         Args:
             generation_number: The current generation number
             user_eval_fn: The user-provided evaluation function
         """
-        # For now, just print a placeholder message
         batch_size = self.config.get('batch_size_llm_calls', 5)
-        print(f"Processing generation {generation_number}. Would generate {batch_size} new programs here.")
+        print(f"Processing generation {generation_number}. Generating {batch_size} new programs...")
+
+        # Step 1: Prepare data for batch processing
+        llm_tasks = []
+        parent_programs_list = []
+        inspiration_programs_list = []
+        prompt_strings = []
+        llm_type = self.config.get('llm_type', 'flash')
+        task_context = self.config.get('task_context', '')
+        output_format = self.config.get('output_format', 'diff')
         
-        # In a complete implementation, this would:
-        # 1. Sample parents/inspirations using self.prompt_sampler
-        # 2. Create prompts
-        # 3. Get diffs via self.llm_interface (concurrently for a batch)
-        # 4. Apply diffs using self.diff_applier
-        # 5. Evaluate new programs via self.evaluation_engine (concurrently for a batch)
-        # 6. Add to self.program_database
+        # Step 2: Generate prompts for the batch
+        for _ in range(batch_size):
+            try:
+                # Sample parent and inspiration programs
+                num_parents = self.config.get('num_parents', 1)
+                num_inspirations = self.config.get('num_inspirations', 2)
+                
+                parents, inspirations = self.program_database.sample_programs_for_prompting(
+                    num_parents=num_parents,
+                    num_inspirations=num_inspirations
+                )
+                
+                # If we don't have enough parents, we can't generate a prompt
+                if not parents:
+                    print("Warning: Not enough parent programs available for prompting")
+                    continue
+                
+                # Store the sampled programs for later use
+                parent_programs_list.append(parents)
+                inspiration_programs_list.append(inspirations)
+                
+                # Create a prompt using the sampled programs
+                parent_ids = [p.id for p in parents]
+                inspiration_ids = [p.id for p in inspirations]
+                
+                prompt_string = self.prompt_sampler.create_evolution_prompt(
+                    parent_program_ids=parent_ids,
+                    inspiration_program_ids=inspiration_ids,
+                    task_context=task_context,
+                    desired_output_format=output_format
+                )
+                
+                prompt_strings.append(prompt_string)
+                
+                # Create task for LLM call
+                llm_tasks.append(self.llm_interface.generate_code_modification(
+                    prompt=prompt_string,
+                    llm_type=llm_type
+                ))
+                
+            except Exception as e:
+                print(f"Error generating prompt: {str(e)}")
+                continue
+        
+        # If we couldn't generate any prompts, end the generation step
+        if not llm_tasks:
+            print("Warning: No valid prompts could be generated. Skipping generation step.")
+            return
+        
+        # Step 3: Make concurrent LLM calls
+        print(f"Making {len(llm_tasks)} concurrent LLM calls...")
+        llm_responses = await asyncio.gather(*llm_tasks, return_exceptions=True)
+        
+        # Step 4: Process LLM responses, apply diffs, and evaluate
+        evaluation_tasks = []
+        program_data = []  # Store data needed for creating ProgramEntry objects later
+        
+        for i, llm_response in enumerate(llm_responses):
+            # Skip if the LLM call failed
+            if isinstance(llm_response, Exception):
+                print(f"LLM call failed: {str(llm_response)}")
+                continue
+            
+            # Get the parent program(s) for this response
+            parents = parent_programs_list[i]
+            parent_code = parents[0].code  # Use the first parent's code
+            parent_id = parents[0].id
+            
+            try:
+                # Apply the diff to the parent code
+                diff_string = llm_response
+                new_code = self.diff_applier.apply_diff(
+                    parent_code_string=parent_code,
+                    diff_string=diff_string
+                )
+                
+                # Create task for evaluation
+                # Dedent the code to avoid indentation errors
+                import textwrap
+                dedented_code = textwrap.dedent(new_code).strip()
+                eval_task = self.evaluation_engine.evaluate_program(
+                    program_code_string=dedented_code,
+                    user_evaluate_fn=user_eval_fn,
+                    task_inputs=self.config.get('task_inputs', None)
+                )
+                
+                # Store the task and associated data
+                evaluation_tasks.append(eval_task)
+                program_data.append({
+                    'code': new_code,
+                    'parent_id': parent_id,
+                    'prompt': prompt_strings[i],
+                    'diff': diff_string
+                })
+                
+            except Exception as e:
+                print(f"Error applying diff or setting up evaluation: {str(e)}")
+                continue
+        
+        # If we couldn't set up any evaluations, end the generation step
+        if not evaluation_tasks:
+            print("Warning: No valid code modifications could be applied. Skipping generation step.")
+            return
+        
+        # Step 5: Run evaluations concurrently
+        print(f"Evaluating {len(evaluation_tasks)} programs concurrently...")
+        evaluation_results = await asyncio.gather(*evaluation_tasks, return_exceptions=True)
+        
+        # Step 6: Process evaluation results and add to database
+        successful_adds = 0
+        best_score = float('-inf')
+        best_score_key = self.program_database.primary_score_key
+        
+        for i, result in enumerate(evaluation_results):
+            # Skip if evaluation failed
+            if isinstance(result, Exception):
+                print(f"Evaluation failed: {str(result)}")
+                continue
+            
+            # Skip if result indicates an error
+            if result.get('error', False):
+                error_type = result.get('error_type', 'Unknown')
+                error_msg = result.get('error_message', 'No message')
+                print(f"Program evaluation error: {error_type} - {error_msg}")
+                continue
+            
+            try:
+                # Calculate features for MAP-Elites
+                # In a real implementation, this would be more sophisticated
+                code_length = len(program_data[i]['code'])
+                primary_score = result.get(best_score_key, 0.0)
+                features = (code_length, primary_score)
+                
+                # Track best score for logging
+                if primary_score > best_score:
+                    best_score = primary_score
+                
+                # Create and add the new program entry
+                new_program = ProgramEntry.create(
+                    code=program_data[i]['code'],
+                    scores=result,
+                    features=features,
+                    generation=generation_number,
+                    parent_id=program_data[i]['parent_id']
+                )
+                
+                # Add to database
+                was_added_to_archive = self.program_database.add_program(new_program)
+                successful_adds += 1
+                
+                # Log whether it was added to the MAP-Elites archive
+                if was_added_to_archive:
+                    print(f"Program {new_program.id} added to MAP-Elites archive with {best_score_key}={primary_score}")
+                else:
+                    print(f"Program {new_program.id} added to database but not to MAP-Elites archive")
+                
+            except Exception as e:
+                print(f"Error adding program to database: {str(e)}")
+                continue
+        
+        # Step 7: Log generation summary
+        print(f"Generation {generation_number} complete. "
+              f"Successfully added {successful_adds}/{len(evaluation_tasks)} programs. "
+              f"Best {best_score_key}: {best_score}")
