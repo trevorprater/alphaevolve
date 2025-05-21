@@ -13,8 +13,10 @@ All tests use appropriate mocking to isolate the controller from its dependencie
 import pytest
 from unittest.mock import MagicMock, patch, AsyncMock, call, ANY
 import asyncio
+import io
+import sys
 from typing import Dict, Any, List
-from contextlib import contextmanager
+from contextlib import contextmanager, redirect_stdout
 
 from alpha_evolve.controller import DistributedController
 from alpha_evolve.task_utils import TaskDefinition, EvaluationWrapper
@@ -921,3 +923,155 @@ async def test_migration_triggered(controller_instance, sample_config):
         
         # For now, we just verify the method completes without errors
         assert True
+
+
+@pytest.mark.asyncio
+async def test_critical_log_messages(
+    controller_instance,
+    mock_program_database,
+    mock_prompt_sampler,
+    mock_llm_interface,
+    mock_diff_applier,
+    mock_evaluation_engine,
+    mock_program_entries,
+    sample_config
+):
+    """
+    Test that critical log messages, especially error reporting, are generated correctly.
+    
+    This test simulates various error conditions and verifies that the controller
+    logs appropriate error messages for each situation.
+    """
+    # Set up a buffer to capture stdout
+    stdout_capture = io.StringIO()
+    
+    # Ensure batch size is 2 for this test to cover multiple error scenarios
+    sample_config["batch_size_llm_calls"] = 2
+    
+    # Set up mock return values
+    parent_list = [mock_program_entries["parent"]]
+    inspiration_list = [
+        mock_program_entries["inspiration1"],
+        mock_program_entries["inspiration2"]
+    ]
+    
+    # Make the first call to sample_programs_for_prompting return valid programs
+    # Make the second call raise an exception to test error handling
+    mock_program_database.sample_programs_for_prompting.side_effect = [
+        (parent_list, inspiration_list),  # First call - success
+        Exception("Database error during sampling")  # Second call - error
+    ]
+    
+    # Create a valid prompt for the first batch item
+    mock_prompt = "Create a better version of this code: def test(): return 42"
+    mock_prompt_sampler.create_evolution_prompt.return_value = mock_prompt
+    
+    # Set up LLM interface to return an Exception for the first call
+    # to test error handling in the gather step
+    mock_llm_interface.generate_code_modification.side_effect = [
+        AsyncMock(side_effect=Exception("LLM service unavailable"))
+    ]
+    
+    # Set up diff applier to raise an error
+    # This won't actually be called because the LLM call will fail first
+    mock_diff_applier.apply_diff.side_effect = DiffApplicationError("Failed to apply diff")
+    
+    # Create a mock error result from evaluation
+    mock_eval_error = {
+        "error": True,
+        "error_type": "RuntimeError",
+        "error_message": "Program caused runtime error"
+    }
+    mock_evaluation_engine.evaluate_program.return_value = mock_eval_error
+    
+    # Capture stdout during the test
+    with redirect_stdout(stdout_capture):
+        # Use mocked_gather to handle async calls
+        with mocked_gather({
+            mock_llm_interface.generate_code_modification: [Exception("LLM service unavailable")]
+        }):
+            # Run the generation step
+            await controller_instance._generation_step(
+                generation_number=3,
+                user_eval_fn=MagicMock()
+            )
+    
+    # Get the captured output
+    output = stdout_capture.getvalue()
+    
+    # Verify that error messages were logged
+    assert "Error generating prompt: Database error during sampling" in output
+    assert "Error applying diff or setting up evaluation" in output
+    assert "Warning: No valid code modifications could be applied" in output
+    
+    # Create a new test controller instance to avoid issues with side effects
+    # from the previous test
+    new_controller = DistributedController(
+        task_definition=controller_instance.task_definition,
+        program_database=MagicMock(spec=ProgramDatabase),
+        prompt_sampler=MagicMock(spec=PromptSampler),
+        llm_interface=MagicMock(spec=LLMInterface),
+        diff_applier=MagicMock(spec=DiffApplier),
+        evaluation_engine=MagicMock(spec=EvaluationEngine),
+        config=sample_config.copy()
+    )
+    
+    # Set the primary score key
+    new_controller.program_database.primary_score_key = "fitness"
+    
+    # Set up mocks for the evaluation error test
+    parent_list = [mock_program_entries["parent"]]
+    inspiration_list = [
+        mock_program_entries["inspiration1"],
+        mock_program_entries["inspiration2"]
+    ]
+    
+    # Configure sample_programs_for_prompting to return a success result
+    new_controller.program_database.sample_programs_for_prompting.return_value = (
+        parent_list, inspiration_list
+    )
+    
+    # Create a valid prompt
+    mock_prompt = "Create a better version of this code: def test(): return 42"
+    new_controller.prompt_sampler.create_evolution_prompt.return_value = mock_prompt
+    
+    # Set up the LLM interface to return a valid diff
+    mock_diff = "--- old\n+++ new\n@@ -1 +1 @@\n-def test(): return 42\n+def test(): return 84"
+    new_controller.llm_interface.generate_code_modification = AsyncMock(return_value=mock_diff)
+    
+    # Set up diff applier to return valid code
+    mock_new_code = "def test(): return 84"
+    new_controller.diff_applier.apply_diff.return_value = mock_new_code
+    
+    # Set up evaluation to return an error result
+    mock_eval_error = {
+        "error": True,
+        "error_type": "RuntimeError",
+        "error_message": "Program caused runtime error"
+    }
+    new_controller.evaluation_engine.evaluate_program = AsyncMock(return_value=mock_eval_error)
+    
+    # Reset the stdout capture
+    stdout_capture = io.StringIO()
+    
+    # Capture stdout during the test
+    with redirect_stdout(stdout_capture):
+        with mocked_gather({
+            new_controller.llm_interface.generate_code_modification: [mock_diff],
+            new_controller.evaluation_engine.evaluate_program: [mock_eval_error]
+        }):
+            # Run the generation step
+            await new_controller._generation_step(
+                generation_number=3,
+                user_eval_fn=MagicMock()
+            )
+    
+    # Get the captured output
+    output = stdout_capture.getvalue()
+    
+    # Print the output for debugging
+    print("\nActual output:", output)
+    
+    # Verify evaluation error messages
+    assert "Program evaluation error: RuntimeError - Program caused runtime error" in output
+    assert "Generation 3 complete" in output
