@@ -26,7 +26,7 @@ async def main():
         "primary_score_key": "objective",
         "num_parents": 1,
         "num_inspirations": 1,
-        "llm_type": "mock",  # Using mock for testing
+        "llm_type": "pro",  # Using mock for testing
         "output_format": "diff",
         "migration_frequency": 2,
     }
@@ -92,4 +92,3 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
-
