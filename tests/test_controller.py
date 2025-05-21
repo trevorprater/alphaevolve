@@ -14,6 +14,7 @@ import pytest
 from unittest.mock import MagicMock, patch, AsyncMock, call, ANY
 import asyncio
 from typing import Dict, Any, List
+from contextlib import contextmanager
 
 from alpha_evolve.controller import DistributedController
 from alpha_evolve.task_utils import TaskDefinition, EvaluationWrapper
@@ -22,6 +23,47 @@ from alpha_evolve.prompt_sampler import PromptSampler
 from alpha_evolve.llm_interface import LLMInterface
 from alpha_evolve.diff_applier import DiffApplier, DiffApplicationError
 from alpha_evolve.evaluation_engine import EvaluationEngine
+
+
+# Context manager for mocking asyncio.gather in a more maintainable way
+@contextmanager
+def mocked_gather(mock_results_map=None):
+    """
+    Context manager for mocking asyncio.gather calls in tests.
+    
+    Args:
+        mock_results_map: A dictionary mapping coroutine types to result lists.
+            Keys are AsyncMock instances, values are lists of results to return.
+    
+    Example:
+        with mocked_gather({
+            mock_llm_interface.generate_code_modification: ["result1", "result2"],
+            mock_evaluation_engine.evaluate_program: [{"score": 0.9}, {"score": 0.8}]
+        }):
+            # Test code that uses asyncio.gather
+    """
+    if mock_results_map is None:
+        mock_results_map = {}
+    
+    original_gather = asyncio.gather
+    
+    async def mock_gather(*args, **kwargs):
+        # Check if the first arg matches any registered mocks
+        if args and isinstance(args[0], AsyncMock):
+            for mock_coro, results in mock_results_map.items():
+                if args[0] is mock_coro:
+                    return results
+        
+        # Fall back to the original gather for non-mocked cases
+        try:
+            return await original_gather(*args, **kwargs)
+        except Exception as e:
+            print(f"Error in original gather: {e}")
+            return []
+    
+    # Apply the patch
+    with patch('asyncio.gather', side_effect=mock_gather):
+        yield
 
 
 @pytest.fixture
@@ -275,20 +317,6 @@ async def test_generation_step_happy_path(
     
     mock_program_database.add_program.return_value = True
     
-    # Create a mock_gather function that simulates asyncio.gather behavior
-    original_gather = asyncio.gather
-    
-    # Mock to handle the two gather calls in the _generation_step method
-    async def mock_gather(*args, **kwargs):
-        # First gather is for LLM calls
-        if len(args) == 1 and isinstance(args[0], AsyncMock) and args[0] is mock_llm_interface.generate_code_modification():
-            return [mock_diff]
-        # Second gather is for evaluation calls
-        elif len(args) == 1 and isinstance(args[0], AsyncMock) and args[0] is mock_evaluation_engine.evaluate_program():
-            return [mock_scores]
-        # Default to original gather for any other calls
-        return await original_gather(*args, **kwargs)
-    
     # Mock ProgramEntry.create class method
     new_program = ProgramEntry(
         id="new-program-id",
@@ -299,8 +327,11 @@ async def test_generation_step_happy_path(
         parent_id=mock_program_entries["parent"].id
     )
     
-    # Execute the test
-    with patch('asyncio.gather', side_effect=mock_gather):
+    # Use the mocked_gather context manager instead of patching directly
+    with mocked_gather({
+        mock_llm_interface.generate_code_modification: [mock_diff],
+        mock_evaluation_engine.evaluate_program: [mock_scores]
+    }):
         with patch('alpha_evolve.program_database.ProgramEntry.create', return_value=new_program):
             # Execute the generation step
             await controller_instance._generation_step(
@@ -384,16 +415,10 @@ async def test_generation_step_diff_application_failure(
     # Make diff application fail
     mock_diff_applier.apply_diff.side_effect = DiffApplicationError("Failed to apply diff")
     
-    # Mock asyncio.gather for the LLM call
-    original_gather = asyncio.gather
-    
-    async def mock_gather(*args, **kwargs):
-        if len(args) == 1 and isinstance(args[0], AsyncMock) and args[0] is mock_llm_interface.generate_code_modification():
-            return [mock_diff]
-        return await original_gather(*args, **kwargs)
-    
-    # Execute the test
-    with patch('asyncio.gather', side_effect=mock_gather):
+    # Use the mocked_gather context manager
+    with mocked_gather({
+        mock_llm_interface.generate_code_modification: [mock_diff]
+    }):
         await controller_instance._generation_step(
             generation_number=3,
             user_eval_fn=MagicMock()
@@ -462,18 +487,11 @@ async def test_generation_step_evaluation_failure(
     }
     mock_evaluation_engine.evaluate_program.return_value = mock_eval_result
     
-    # Mock asyncio.gather for both LLM and evaluation calls
-    original_gather = asyncio.gather
-    
-    async def mock_gather(*args, **kwargs):
-        if len(args) == 1 and isinstance(args[0], AsyncMock) and args[0] is mock_llm_interface.generate_code_modification():
-            return [mock_diff]
-        elif len(args) == 1 and isinstance(args[0], AsyncMock) and args[0] is mock_evaluation_engine.evaluate_program():
-            return [mock_eval_result]
-        return await original_gather(*args, **kwargs)
-    
-    # Execute the test
-    with patch('asyncio.gather', side_effect=mock_gather):
+    # Use the mocked_gather context manager
+    with mocked_gather({
+        mock_llm_interface.generate_code_modification: [mock_diff],
+        mock_evaluation_engine.evaluate_program: [mock_eval_result]
+    }):
         await controller_instance._generation_step(
             generation_number=3,
             user_eval_fn=MagicMock()
@@ -596,26 +614,11 @@ async def test_generation_step_batch_processing(
             return mock_programs[1]
         raise ValueError("Unexpected code for program creation")
     
-    # Mock asyncio.gather to handle batch processing
-    original_gather = asyncio.gather
-    
-    async def mock_gather(*args, **kwargs):
-        if len(args) == batch_size and all(isinstance(arg, AsyncMock) for arg in args):
-            if args[0] is mock_llm_interface.generate_code_modification():
-                return mock_diffs
-            elif args[0] is mock_evaluation_engine.evaluate_program():
-                return mock_scores
-        else:
-            try:
-                return await original_gather(*args, **kwargs)
-            except Exception as e:
-                # Handle any other asyncio.gather calls gracefully
-                print(f"Mock gather received unexpected args: {args}, {kwargs}")
-                print(f"Exception: {e}")
-                return []
-    
-    # Execute the test
-    with patch('asyncio.gather', side_effect=mock_gather):
+    # Use the mocked_gather context manager
+    with mocked_gather({
+        mock_llm_interface.generate_code_modification: mock_diffs,
+        mock_evaluation_engine.evaluate_program: mock_scores
+    }):
         with patch('alpha_evolve.program_database.ProgramEntry.create', side_effect=mock_create_program):
             # Run the generation step with batch size 2
             await controller_instance._generation_step(
@@ -797,29 +800,11 @@ async def test_generation_step_batch_mixed_results(
             return successful_program
         raise ValueError("Unexpected code or scores for program creation")
     
-    # Mock asyncio.gather to handle batch processing
-    original_gather = asyncio.gather
-    
-    async def mock_gather(*args, **kwargs):
-        if len(args) == batch_size and all(isinstance(arg, AsyncMock) for arg in args):
-            if args[0] is mock_llm_interface.generate_code_modification():
-                # Return all three diffs from LLM calls
-                return mock_diffs
-            elif len(args) == 2 and args[0] is mock_evaluation_engine.evaluate_program():
-                # Return results for successful case and error case
-                # (The failing diff application case doesn't get to evaluation)
-                return [mock_success_score, mock_error_result]
-        else:
-            try:
-                return await original_gather(*args, **kwargs)
-            except Exception as e:
-                # Handle any other asyncio.gather calls gracefully
-                print(f"Mock gather received unexpected args: {args}, {kwargs}")
-                print(f"Exception: {e}")
-                return []
-    
-    # Execute the test
-    with patch('asyncio.gather', side_effect=mock_gather):
+    # Use the mocked_gather context manager
+    with mocked_gather({
+        mock_llm_interface.generate_code_modification: mock_diffs,
+        mock_evaluation_engine.evaluate_program: [mock_success_score, mock_error_result]
+    }):
         with patch('alpha_evolve.program_database.ProgramEntry.create', side_effect=mock_create_program):
             # Reset the call counts of all mocks before running the test
             mock_program_database.sample_programs_for_prompting.reset_mock()
