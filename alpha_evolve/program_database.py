@@ -286,3 +286,37 @@ class ProgramDatabase:
         """
         print(f"Migration of {num_to_migrate} programs triggered (not yet implemented)")
         pass
+        
+    def get_best_program(self) -> Optional[ProgramEntry]:
+        """
+        Find and return the program with the highest score for the primary score key.
+        
+        This method searches through all programs in the MAP-Elites archive and 
+        returns the one with the highest value for the primary_score_key.
+        
+        Returns:
+            The program entry with the highest primary score, or None if the archive
+            is empty or no programs have valid scores.
+            
+        Raises:
+            KeyError: If any program in the archive is missing the primary_score_key.
+        """
+        # Get all programs from the archive
+        programs = list(self.map_elites_archive.archive.values())
+        
+        # If no programs in the archive, return None
+        if not programs:
+            return None
+            
+        # First, check if all programs have the primary score key
+        for program in programs:
+            if self.primary_score_key not in program.scores:
+                raise KeyError(f"Primary score key '{self.primary_score_key}' not found in program scores")
+                
+        # Find the program with the highest primary score
+        best_program = max(
+            programs, 
+            key=lambda program: program.scores[self.primary_score_key]
+        )
+        
+        return best_program

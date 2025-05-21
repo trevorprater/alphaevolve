@@ -589,3 +589,49 @@ class TestProgramDatabase:
         # Assert
         out, err = capfd.readouterr()
         assert "Migration of 5 programs triggered (not yet implemented)" in out
+        
+    def test_get_best_program_empty_archive(self, empty_database):
+        """Test getting the best program from an empty archive."""
+        # Act
+        best_program = empty_database.get_best_program()
+        
+        # Assert
+        assert best_program is None
+        
+    def test_get_best_program_found(self, populated_database):
+        """Test getting the best program from a populated archive."""
+        # Arrange
+        database, all_programs = populated_database
+        # The program with the highest fitness is the third one (index 2) with 0.9
+        expected_best = next(p for p in all_programs if p.scores["fitness"] == 0.9)
+        
+        # Act
+        best_program = database.get_best_program()
+        
+        # Assert
+        assert best_program is not None
+        assert best_program.scores["fitness"] == 0.9
+        assert best_program.id == expected_best.id
+        
+    def test_get_best_program_missing_score_key(self, empty_database, program_entry_factory):
+        """Test getting the best program when score key is missing."""
+        # Arrange
+        program_with_score = program_entry_factory(
+            features=(5, 0.25),
+            scores={"fitness": 0.8}
+        )
+        program_without_score = program_entry_factory(
+            features=(15, 0.25),
+            scores={"performance": 0.9}  # Missing the primary score key "fitness"
+        )
+        
+        # Add both programs to the database
+        empty_database.add_program(program_with_score)
+        
+        # Directly add to the archive to bypass score key validation
+        bin_key = empty_database.map_elites_archive._get_feature_bin_key(program_without_score.features)
+        empty_database.map_elites_archive.archive[bin_key] = program_without_score
+        
+        # Act/Assert
+        with pytest.raises(KeyError):
+            empty_database.get_best_program()
