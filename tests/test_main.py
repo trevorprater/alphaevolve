@@ -334,15 +334,17 @@ async def test_configuration_parameters(mock_all_components):
     assert 'feature_dimensions_bins' in program_db_call_args
     assert 'primary_score_key' in program_db_call_args
     
-    # Verify feature_dimensions_bins contains the expected bins
+    # Verify feature_dimensions_bins is a list of lists with correct structure
     feature_bins = program_db_call_args['feature_dimensions_bins']
-    assert 'code_length_bins' in feature_bins
-    assert 'objective_score_bins' in feature_bins
+    assert isinstance(feature_bins, list)
+    assert len(feature_bins) == 2  # Two feature dimensions: code_length and objective_score
     
     # Verify specific bin values
-    assert feature_bins['code_length_bins'] == [0, 50, 100, 1000]
-    assert feature_bins['objective_score_bins'][0] == -float('inf')  # First bin starts at -infinity
-    assert feature_bins['objective_score_bins'][3] == 1.0  # Last bin ends at 1.0
+    # First list should be code_length bins
+    assert feature_bins[0] == [0, 50, 100, 1000]
+    # Second list should be objective_score bins
+    assert feature_bins[1][0] == -float('inf')  # First bin starts at -infinity
+    assert feature_bins[1][3] == 1.0  # Last bin ends at 1.0
     
     # Verify primary_score_key
     assert program_db_call_args['primary_score_key'] == 'objective'
