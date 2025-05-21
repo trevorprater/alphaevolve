@@ -686,6 +686,224 @@ async def test_generation_step_batch_processing(
 
 
 @pytest.mark.asyncio
+async def test_generation_step_batch_mixed_results(
+    controller_instance,
+    mock_program_database,
+    mock_prompt_sampler,
+    mock_llm_interface,
+    mock_diff_applier,
+    mock_evaluation_engine,
+    mock_program_entries,
+    sample_config
+):
+    """
+    Test that _generation_step correctly handles a batch with mixed success/failure results.
+    
+    This test verifies that:
+    1. Each batch item is processed independently
+    2. Failures in one batch item don't affect other items
+    3. Different outcomes for each batch item are handled correctly:
+       - First item: Successfully generated, applied, evaluated, and added
+       - Second item: Diff application fails, skips further processing
+       - Third item: Evaluation returns an error, skips adding to database
+    """
+    # Use a batch size of 3 for this test to cover different scenarios
+    batch_size = 3
+    sample_config["batch_size_llm_calls"] = batch_size
+    
+    # Return parent and inspiration programs
+    parent_list = [mock_program_entries["parent"]]
+    inspiration_list = [
+        mock_program_entries["inspiration1"],
+        mock_program_entries["inspiration2"]
+    ]
+    mock_program_database.sample_programs_for_prompting.return_value = (
+        parent_list, inspiration_list
+    )
+    
+    # Create prompts for each batch item
+    mock_prompts = ["Prompt Success", "Prompt Diff Failure", "Prompt Eval Failure"]
+    mock_prompt_sampler.create_evolution_prompt.side_effect = mock_prompts
+    
+    # Create diffs for each batch item
+    mock_diffs = [
+        "--- old\n+++ new\n@@ -1 +1 @@\n-def test(): return 42\n+def test(): return 84",  # Success
+        "--- old\n+++ new\n@@ -1 +1 @@\n-def test(): return 42\n+def test(): raise Error",  # Will fail diff application
+        "--- old\n+++ new\n@@ -1 +1 @@\n-def test(): return 42\n+def test(): return 126"  # Will fail evaluation
+    ]
+    
+    # Set up the LLM interface to return appropriate diffs
+    async def mock_llm_call(prompt, llm_type):
+        if prompt == mock_prompts[0]:
+            return mock_diffs[0]
+        elif prompt == mock_prompts[1]:
+            return mock_diffs[1]
+        elif prompt == mock_prompts[2]:
+            return mock_diffs[2]
+        return "Unexpected prompt"
+    
+    mock_llm_interface.generate_code_modification.side_effect = mock_llm_call
+    
+    # Create new code for each batch item
+    mock_new_codes = [
+        "def test(): return 84",   # Success
+        None,                      # Diff application will fail
+        "def test(): return 126"   # Will have evaluation error
+    ]
+    
+    # Set up the diff applier to handle each case
+    def mock_diff_apply(parent_code_string, diff_string):
+        if diff_string == mock_diffs[0]:
+            return mock_new_codes[0]
+        elif diff_string == mock_diffs[1]:
+            raise DiffApplicationError("Failed to apply diff")
+        elif diff_string == mock_diffs[2]:
+            return mock_new_codes[2]
+        return "Unexpected diff"
+    
+    mock_diff_applier.apply_diff.side_effect = mock_diff_apply
+    
+    # Create scores and error result for evaluation
+    mock_success_score = {"fitness": 0.9, "efficiency": 0.85}
+    mock_error_result = {
+        "error": True,
+        "error_type": "RuntimeError",
+        "error_message": "Failed to execute the code"
+    }
+    
+    # Set up the evaluation engine to return appropriate scores
+    async def mock_evaluate(program_code_string, user_evaluate_fn, task_inputs):
+        if program_code_string == mock_new_codes[0]:
+            return mock_success_score
+        elif program_code_string == mock_new_codes[2]:
+            return mock_error_result
+        return {"error": True, "error_message": "Unexpected code"}
+    
+    mock_evaluation_engine.evaluate_program.side_effect = mock_evaluate
+    
+    # Create program entry for successful case
+    successful_program = ProgramEntry(
+        id="new-program-success",
+        code=mock_new_codes[0],
+        scores=mock_success_score,
+        features=(len(mock_new_codes[0]), mock_success_score["fitness"]),
+        generation=3,
+        parent_id=mock_program_entries["parent"].id
+    )
+    
+    # Mock ProgramEntry.create
+    def mock_create_program(code, scores, features, generation, parent_id):
+        if code == mock_new_codes[0] and scores == mock_success_score:
+            return successful_program
+        raise ValueError("Unexpected code or scores for program creation")
+    
+    # Mock asyncio.gather to handle batch processing
+    original_gather = asyncio.gather
+    
+    async def mock_gather(*args, **kwargs):
+        if len(args) == batch_size and all(isinstance(arg, AsyncMock) for arg in args):
+            if args[0] is mock_llm_interface.generate_code_modification():
+                # Return all three diffs from LLM calls
+                return mock_diffs
+            elif len(args) == 2 and args[0] is mock_evaluation_engine.evaluate_program():
+                # Return results for successful case and error case
+                # (The failing diff application case doesn't get to evaluation)
+                return [mock_success_score, mock_error_result]
+        else:
+            try:
+                return await original_gather(*args, **kwargs)
+            except Exception as e:
+                # Handle any other asyncio.gather calls gracefully
+                print(f"Mock gather received unexpected args: {args}, {kwargs}")
+                print(f"Exception: {e}")
+                return []
+    
+    # Execute the test
+    with patch('asyncio.gather', side_effect=mock_gather):
+        with patch('alpha_evolve.program_database.ProgramEntry.create', side_effect=mock_create_program):
+            # Reset the call counts of all mocks before running the test
+            mock_program_database.sample_programs_for_prompting.reset_mock()
+            mock_prompt_sampler.create_evolution_prompt.reset_mock()
+            mock_llm_interface.generate_code_modification.reset_mock()
+            mock_diff_applier.apply_diff.reset_mock()
+            mock_evaluation_engine.evaluate_program.reset_mock()
+            mock_program_database.add_program.reset_mock()
+            
+            # Run the generation step with batch size 3
+            await controller_instance._generation_step(
+                generation_number=3,
+                user_eval_fn=MagicMock()
+            )
+            
+            # Verify sample_programs_for_prompting was called exactly three times
+            assert mock_program_database.sample_programs_for_prompting.call_count == batch_size
+            
+            # Verify create_evolution_prompt was called exactly three times
+            assert mock_prompt_sampler.create_evolution_prompt.call_count == batch_size
+            
+            # Verify generate_code_modification was called exactly three times
+            assert mock_llm_interface.generate_code_modification.call_count == batch_size
+            
+            # Verify apply_diff was called exactly three times
+            # (Once successfully, once raising an error, once successfully for the evaluation failure case)
+            assert mock_diff_applier.apply_diff.call_count == batch_size
+            
+            # Verify evaluate_program was called exactly twice
+            # (Once for successful case, once for the evaluation failure case)
+            # (The diff application failure case doesn't get to evaluation)
+            assert mock_evaluation_engine.evaluate_program.call_count == 2
+            
+            # Verify add_program was called exactly once
+            # (Only the successful case makes it all the way to adding to the database)
+            assert mock_program_database.add_program.call_count == 1
+            mock_program_database.add_program.assert_called_once_with(successful_program)
+
+
+@pytest.mark.asyncio
+async def test_generation_step_empty_parent_list(
+    controller_instance,
+    mock_program_database,
+    mock_prompt_sampler,
+    mock_llm_interface,
+    mock_diff_applier,
+    mock_evaluation_engine,
+    mock_program_entries,
+    sample_config
+):
+    """
+    Test that _generation_step handles empty parent list gracefully.
+    
+    This test verifies that:
+    1. When sample_programs_for_prompting returns an empty parent list, the controller
+       skips prompt creation and further processing
+    2. The prompt sampler, LLM interface, diff applier, evaluation engine, and database
+       methods are not called
+    """
+    # Set up return values
+    empty_parent_list = []
+    empty_inspiration_list = []
+    mock_program_database.sample_programs_for_prompting.return_value = (
+        empty_parent_list, empty_inspiration_list
+    )
+    
+    # Execute the test
+    await controller_instance._generation_step(
+        generation_number=3,
+        user_eval_fn=MagicMock()
+    )
+    
+    # Verify that sample_programs_for_prompting was called
+    mock_program_database.sample_programs_for_prompting.assert_called()
+    
+    # Verify that no further processing happens
+    mock_prompt_sampler.create_evolution_prompt.assert_not_called()
+    mock_llm_interface.generate_code_modification.assert_not_called()
+    mock_diff_applier.apply_diff.assert_not_called()
+    mock_evaluation_engine.evaluate_program.assert_not_called()
+    mock_program_database.add_program.assert_not_called()
+
+
+@pytest.mark.asyncio
 async def test_migration_triggered(controller_instance, sample_config):
     """
     Test that migration between islands is triggered at the appropriate generations.
