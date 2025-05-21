@@ -588,6 +588,14 @@ async def test_generation_step_batch_processing(
         for i in range(batch_size)
     ]
     
+    # Mock ProgramEntry.create to return the appropriate program entry
+    def mock_create_program(code, scores, features, generation, parent_id):
+        if code == mock_new_codes[0]:
+            return mock_programs[0]
+        elif code == mock_new_codes[1]:
+            return mock_programs[1]
+        raise ValueError("Unexpected code for program creation")
+    
     # Mock asyncio.gather to handle batch processing
     original_gather = asyncio.gather
     
@@ -608,34 +616,73 @@ async def test_generation_step_batch_processing(
     
     # Execute the test
     with patch('asyncio.gather', side_effect=mock_gather):
-        with patch('alpha_evolve.program_database.ProgramEntry.create', side_effect=mock_programs):
+        with patch('alpha_evolve.program_database.ProgramEntry.create', side_effect=mock_create_program):
             # Run the generation step with batch size 2
             await controller_instance._generation_step(
                 generation_number=3,
                 user_eval_fn=MagicMock()
             )
             
-            # Because we're handling a simplified case where the mocks return fixed lists,
-            # we won't get the full batch processing in the real implementation.
-            # But we can verify that the key methods were called with expected args.
+            # Verify sample_programs_for_prompting was called exactly twice (once for each batch item)
+            assert mock_program_database.sample_programs_for_prompting.call_count == batch_size
+            # All calls should use the same parameters
+            for i in range(batch_size):
+                assert mock_program_database.sample_programs_for_prompting.call_args_list[i] == call(
+                    num_parents=sample_config["num_parents"],
+                    num_inspirations=sample_config["num_inspirations"]
+                )
             
-            # Verify program_database.sample_programs_for_prompting was called
-            mock_program_database.sample_programs_for_prompting.assert_called()
+            # Verify create_evolution_prompt was called exactly twice
+            assert mock_prompt_sampler.create_evolution_prompt.call_count == batch_size
+            # Each call should use the same parent and inspiration IDs
+            expected_parent_ids = [mock_program_entries["parent"].id]
+            expected_inspiration_ids = [
+                mock_program_entries["inspiration1"].id,
+                mock_program_entries["inspiration2"].id
+            ]
+            for i in range(batch_size):
+                assert mock_prompt_sampler.create_evolution_prompt.call_args_list[i] == call(
+                    parent_program_ids=expected_parent_ids,
+                    inspiration_program_ids=expected_inspiration_ids,
+                    task_context=sample_config["task_context"],
+                    desired_output_format=sample_config["output_format"]
+                )
             
-            # Verify prompt_sampler.create_evolution_prompt was called
-            mock_prompt_sampler.create_evolution_prompt.assert_called()
+            # Verify generate_code_modification was called exactly twice
+            assert mock_llm_interface.generate_code_modification.call_count == batch_size
+            # Each call should use a different prompt
+            for i in range(batch_size):
+                assert mock_llm_interface.generate_code_modification.call_args_list[i] == call(
+                    prompt=mock_prompts[i],
+                    llm_type=sample_config["llm_type"]
+                )
             
-            # Verify llm_interface.generate_code_modification was called
-            mock_llm_interface.generate_code_modification.assert_called()
+            # Verify apply_diff was called exactly twice
+            assert mock_diff_applier.apply_diff.call_count == batch_size
+            # Each call should use a different diff
+            for i in range(batch_size):
+                assert mock_diff_applier.apply_diff.call_args_list[i] == call(
+                    parent_code_string=mock_program_entries["parent"].code,
+                    diff_string=mock_diffs[i]
+                )
             
-            # Verify diff_applier.apply_diff was called
-            mock_diff_applier.apply_diff.assert_called()
+            # Verify evaluate_program was called exactly twice
+            assert mock_evaluation_engine.evaluate_program.call_count == batch_size
+            # Each call should use a different program code
+            for i in range(batch_size):
+                assert mock_evaluation_engine.evaluate_program.call_args_list[i] == call(
+                    program_code_string=mock_new_codes[i],
+                    user_evaluate_fn=ANY,
+                    task_inputs=sample_config["task_inputs"]
+                )
             
-            # Verify evaluation_engine.evaluate_program was called
-            mock_evaluation_engine.evaluate_program.assert_called()
-            
-            # Verify program_database.add_program was called
-            mock_program_database.add_program.assert_called()
+            # Verify add_program was called exactly twice
+            assert mock_program_database.add_program.call_count == batch_size
+            # Each call should add a different program
+            for i in range(batch_size):
+                assert mock_program_database.add_program.call_args_list[i] == call(
+                    mock_programs[i]
+                )
 
 
 @pytest.mark.asyncio
