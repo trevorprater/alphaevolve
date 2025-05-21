@@ -1,0 +1,159 @@
+"""
+Evaluation engine for AlphaEvolve.
+
+This module provides the EvaluationEngine class, which is responsible for executing
+and evaluating generated code using user-provided evaluation functions.
+"""
+
+import asyncio
+import importlib.util
+import sys
+import tempfile
+import traceback
+from typing import Any, Callable, Dict, Optional, Union
+from pathlib import Path
+import os
+
+from alpha_evolve.task_utils import EvaluationWrapper, EvaluationError
+
+
+class EvaluationEngine:
+    """
+    Handles the evaluation of generated program code using user-provided evaluation functions.
+    
+    This class executes program code strings, handles potential execution errors,
+    and returns evaluation scores using user-defined evaluation metrics.
+    """
+    
+    def __init__(self, evaluation_config: Optional[Dict[str, Any]] = None):
+        """
+        Initialize the EvaluationEngine with optional configuration.
+        
+        Args:
+            evaluation_config: Optional configuration dictionary that may include
+                parameters like timeouts, sandboxing options, etc.
+        """
+        self.evaluation_config = evaluation_config or {}
+        self.evaluation_wrapper = EvaluationWrapper()
+        
+    async def evaluate_program(
+        self, 
+        program_code_string: str, 
+        user_evaluate_fn: Callable, 
+        task_inputs: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, float]:
+        """
+        Evaluate a program code string using the provided evaluation function.
+        
+        This method handles the execution of the program code string, passes it to the
+        user-provided evaluation function, and returns the evaluation scores. It also
+        catches and handles any errors that may occur during execution or evaluation.
+        
+        Args:
+            program_code_string: The Python code to evaluate as a string.
+            user_evaluate_fn: The user-provided function that will evaluate the code.
+            task_inputs: Optional dictionary of additional inputs for the evaluation function.
+            
+        Returns:
+            A dictionary mapping score names to float values. If an error occurs,
+            returns a dictionary with 'error' set to True and 'score' set to negative infinity.
+        """
+        try:
+            # Define a default error result
+            error_result = {'error': True, 'score': float('-inf')}
+            
+            # Create a dictionary to serve as a local namespace for executing the code
+            local_namespace = {}
+            
+            try:
+                # Execute the program code string in the local namespace
+                exec(program_code_string, {}, local_namespace)
+            except SyntaxError as e:
+                # Handle syntax errors in the program code
+                return {
+                    'error': True, 
+                    'score': float('-inf'),
+                    'error_type': 'SyntaxError',
+                    'error_message': str(e)
+                }
+            except Exception as e:
+                # Handle other execution errors
+                return {
+                    'error': True, 
+                    'score': float('-inf'),
+                    'error_type': type(e).__name__,
+                    'error_message': str(e)
+                }
+            
+            # Run the evaluation using the EvaluationWrapper
+            try:
+                # The user_evaluate_fn could expect either:
+                # 1. The entire namespace containing all defined symbols
+                # 2. A specific function or object defined in the code
+                # We'll pass the local_namespace and let the user_evaluate_fn handle it appropriately
+                result = self.evaluation_wrapper.run_evaluation(
+                    local_namespace,
+                    user_evaluate_fn,
+                    task_inputs
+                )
+                return result
+            except EvaluationError as e:
+                # Handle errors from the evaluation function
+                return {
+                    'error': True, 
+                    'score': float('-inf'),
+                    'error_type': 'EvaluationError',
+                    'error_message': str(e)
+                }
+            except Exception as e:
+                # Handle any other unexpected errors
+                return {
+                    'error': True, 
+                    'score': float('-inf'),
+                    'error_type': type(e).__name__,
+                    'error_message': str(e)
+                }
+                
+        except Exception as e:
+            # Catch any other unexpected exceptions
+            return {
+                'error': True, 
+                'score': float('-inf'),
+                'error_type': type(e).__name__,
+                'error_message': str(e)
+            }
+    
+    async def _apply_evaluation_cascades(self, program_code_string: str, cascades: list) -> Dict[str, float]:
+        """
+        Apply a series of increasingly complex evaluations to a program.
+        
+        This is a placeholder for a future feature that would allow for multiple
+        evaluation stages, with each subsequent stage only running if the previous
+        stages passed successfully.
+        
+        Args:
+            program_code_string: The Python code to evaluate as a string.
+            cascades: A list of evaluation configurations to apply in sequence.
+            
+        Returns:
+            A dictionary containing the evaluation results.
+        """
+        # This is a placeholder for future implementation
+        pass
+    
+    async def _get_llm_feedback(self, program_code_string: str, execution_error: Optional[Exception] = None) -> str:
+        """
+        Get feedback from an LLM about the quality of the program or any errors.
+        
+        This is a placeholder for a future feature that would leverage LLMs to
+        provide qualitative feedback about code quality or to help diagnose errors.
+        
+        Args:
+            program_code_string: The Python code to evaluate as a string.
+            execution_error: An optional exception that occurred during execution.
+            
+        Returns:
+            A string containing LLM feedback about the code.
+        """
+        # This is a placeholder for future implementation
+        return "LLM feedback placeholder"
