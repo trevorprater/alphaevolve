@@ -5,7 +5,7 @@ Tests for the program_database module.
 import pytest
 import uuid
 from typing import Dict, Tuple
-from alpha_evolve.program_database import ProgramEntry, MAPElitesArchive
+from alpha_evolve.program_database import ProgramEntry, MAPElitesArchive, ProgramDatabase
 
 
 class TestProgramEntry:
@@ -367,3 +367,225 @@ class TestMAPElitesArchive:
 
         # Assert
         assert random_elites == []
+
+
+class TestProgramDatabase:
+    """Tests for the ProgramDatabase class."""
+
+    @pytest.fixture
+    def feature_dimensions_bins(self):
+        """Fixture for feature dimensions bins."""
+        return [[0, 10, 20], [0.0, 0.5, 1.0]]
+
+    @pytest.fixture
+    def empty_database(self, feature_dimensions_bins):
+        """Fixture for an empty program database."""
+        return ProgramDatabase(feature_dimensions_bins)
+
+    @pytest.fixture
+    def program_entry_factory(self):
+        """Factory fixture for creating ProgramEntry instances."""
+        def _create_program_entry(
+            code: str = "def example(): return 42",
+            scores: Dict[str, float] = None,
+            features: Tuple = None,
+            generation: int = 1,
+            parent_id: str = None
+        ) -> ProgramEntry:
+            if scores is None:
+                scores = {"fitness": 0.8, "complexity": 0.3}
+            if features is None:
+                features = (5, 0.25)
+            
+            return ProgramEntry.create(
+                code=code,
+                scores=scores,
+                features=features,
+                generation=generation,
+                parent_id=parent_id
+            )
+        return _create_program_entry
+
+    @pytest.fixture
+    def populated_database(self, empty_database, program_entry_factory):
+        """Fixture for a database populated with several program entries."""
+        programs = [
+            program_entry_factory(features=(5, 0.25), scores={"fitness": 0.8}),
+            program_entry_factory(features=(15, 0.25), scores={"fitness": 0.7}),
+            program_entry_factory(features=(5, 0.75), scores={"fitness": 0.9}),
+            program_entry_factory(features=(15, 0.75), scores={"fitness": 0.6})
+        ]
+        
+        for program in programs:
+            empty_database.add_program(program)
+            
+        return empty_database, programs
+
+    def test_program_database_initialization(self, feature_dimensions_bins):
+        """Test ProgramDatabase initialization."""
+        # Act
+        database = ProgramDatabase(feature_dimensions_bins)
+
+        # Assert
+        assert isinstance(database.map_elites_archive, MAPElitesArchive)
+        assert database.map_elites_archive.feature_dimensions_bins == feature_dimensions_bins
+        assert database.primary_score_key == "fitness"  # default value
+        assert database.all_programs_by_id == {}
+
+    def test_program_database_initialization_custom_score_key(self, feature_dimensions_bins):
+        """Test ProgramDatabase initialization with a custom primary score key."""
+        # Act
+        database = ProgramDatabase(feature_dimensions_bins, primary_score_key="performance")
+
+        # Assert
+        assert database.primary_score_key == "performance"
+
+    def test_add_program(self, empty_database, program_entry_factory, monkeypatch):
+        """Test adding a program to the database."""
+        # Arrange
+        program_entry = program_entry_factory()
+        
+        # Mock MAPElitesArchive.add_program to return True
+        add_program_called = False
+        original_add_program = MAPElitesArchive.add_program
+        
+        def mock_add_program(self, program, primary_score_key):
+            nonlocal add_program_called
+            add_program_called = True
+            assert program is program_entry
+            assert primary_score_key == "fitness"
+            return True
+            
+        monkeypatch.setattr(MAPElitesArchive, "add_program", mock_add_program)
+        
+        # Act
+        result = empty_database.add_program(program_entry)
+        
+        # Restore original method
+        monkeypatch.setattr(MAPElitesArchive, "add_program", original_add_program)
+        
+        # Assert
+        assert result is True
+        assert add_program_called is True
+        assert program_entry.id in empty_database.all_programs_by_id
+        assert empty_database.all_programs_by_id[program_entry.id] is program_entry
+
+    def test_add_program_not_added_to_archive(self, empty_database, program_entry_factory, monkeypatch):
+        """Test adding a program that's not added to the archive."""
+        # Arrange
+        program_entry = program_entry_factory()
+        
+        # Mock MAPElitesArchive.add_program to return False
+        original_add_program = MAPElitesArchive.add_program
+        
+        def mock_add_program(self, program, primary_score_key):
+            return False
+            
+        monkeypatch.setattr(MAPElitesArchive, "add_program", mock_add_program)
+        
+        # Act
+        result = empty_database.add_program(program_entry)
+        
+        # Restore original method
+        monkeypatch.setattr(MAPElitesArchive, "add_program", original_add_program)
+        
+        # Assert
+        assert result is False
+        assert program_entry.id in empty_database.all_programs_by_id  # Still added to all_programs_by_id
+
+    def test_get_program_by_id_existing(self, empty_database, program_entry_factory):
+        """Test retrieving an existing program by ID."""
+        # Arrange
+        program_entry = program_entry_factory()
+        empty_database.add_program(program_entry)
+        
+        # Act
+        retrieved_program = empty_database.get_program_by_id(program_entry.id)
+        
+        # Assert
+        assert retrieved_program is program_entry
+
+    def test_get_program_by_id_non_existent(self, empty_database):
+        """Test retrieving a non-existent program by ID."""
+        # Act
+        retrieved_program = empty_database.get_program_by_id("non-existent-id")
+        
+        # Assert
+        assert retrieved_program is None
+
+    def test_sample_programs_for_prompting_enough_elites(self, populated_database, monkeypatch):
+        """Test sampling programs when enough elites are available."""
+        # Arrange
+        database, all_programs = populated_database
+        
+        # Mock MAPElitesArchive.get_random_elites to return controlled results
+        original_get_random_elites = MAPElitesArchive.get_random_elites
+        
+        def mock_get_random_elites(self, count):
+            # Return all programs when requested, so we can test the split logic
+            return all_programs
+            
+        monkeypatch.setattr(MAPElitesArchive, "get_random_elites", mock_get_random_elites)
+        
+        # Act
+        num_parents = 2
+        num_inspirations = 2
+        parents, inspirations = database.sample_programs_for_prompting(num_parents, num_inspirations)
+        
+        # Restore original method
+        monkeypatch.setattr(MAPElitesArchive, "get_random_elites", original_get_random_elites)
+        
+        # Assert
+        assert len(parents) == num_parents
+        assert len(inspirations) == num_inspirations
+        assert parents == all_programs[:num_parents]
+        assert inspirations == all_programs[num_parents:num_parents + num_inspirations]
+
+    def test_sample_programs_for_prompting_not_enough_elites(self, populated_database, monkeypatch):
+        """Test sampling programs when not enough elites are available."""
+        # Arrange
+        database, all_programs = populated_database
+        
+        # Mock MAPElitesArchive.get_random_elites to return fewer elites than requested
+        original_get_random_elites = MAPElitesArchive.get_random_elites
+        
+        def mock_get_random_elites(self, count):
+            # Only return 2 programs
+            return all_programs[:2]
+            
+        monkeypatch.setattr(MAPElitesArchive, "get_random_elites", mock_get_random_elites)
+        
+        # Act
+        num_parents = 3  # More than available
+        num_inspirations = 2
+        parents, inspirations = database.sample_programs_for_prompting(num_parents, num_inspirations)
+        
+        # Restore original method
+        monkeypatch.setattr(MAPElitesArchive, "get_random_elites", original_get_random_elites)
+        
+        # Assert
+        assert len(parents) == 2  # All available elites used as parents
+        assert len(inspirations) == 0  # No elites left for inspirations
+        assert parents == all_programs[:2]
+
+    def test_sample_programs_for_prompting_empty_archive(self, empty_database):
+        """Test sampling programs from an empty archive."""
+        # Act
+        parents, inspirations = empty_database.sample_programs_for_prompting(2, 3)
+        
+        # Assert
+        assert parents == []
+        assert inspirations == []
+
+    def test_trigger_migration(self, empty_database, capfd):
+        """Test the trigger_migration method."""
+        # Arrange
+        other_db = ProgramDatabase([[0, 10, 20], [0.0, 0.5, 1.0]])
+        num_to_migrate = 5
+        
+        # Act
+        empty_database.trigger_migration(other_db, num_to_migrate)
+        
+        # Assert
+        out, err = capfd.readouterr()
+        assert "Migration of 5 programs triggered (not yet implemented)" in out
