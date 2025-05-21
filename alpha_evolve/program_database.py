@@ -1,10 +1,10 @@
 """
 This module defines the core data structures for the Program Database,
-specifically ProgramEntry and MAPElitesArchive.
+specifically ProgramEntry, MAPElitesArchive, and ProgramDatabase.
 """
 
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Set
 import random
 import uuid
 
@@ -187,3 +187,102 @@ class MAPElitesArchive:
         
         # Otherwise, return a random sample
         return random.sample(elites, count)
+
+
+class ProgramDatabase:
+    """
+    Manages program entries and provides access to the MAP-Elites archive.
+    
+    This class serves as the main interface for storing, retrieving, and 
+    sampling program entries during the evolutionary process.
+    """
+    
+    def __init__(
+        self, 
+        feature_dimensions_bins: List[List[Any]], 
+        primary_score_key: str = "fitness"
+    ):
+        """
+        Initialize a new program database.
+        
+        Args:
+            feature_dimensions_bins: A list of lists, where each inner list defines
+                the bin boundaries for a feature dimension in the MAP-Elites archive.
+            primary_score_key: The key in program entry scores to use for comparing
+                programs in the MAP-Elites archive. Defaults to "fitness".
+        """
+        self.map_elites_archive = MAPElitesArchive(feature_dimensions_bins)
+        self.primary_score_key = primary_score_key
+        self.all_programs_by_id: Dict[str, ProgramEntry] = {}
+    
+    def add_program(self, program_entry: ProgramEntry) -> bool:
+        """
+        Add a program entry to the database and attempt to add it to the MAP-Elites archive.
+        
+        Args:
+            program_entry: The program entry to add
+            
+        Returns:
+            True if the program was added to the MAP-Elites archive, False otherwise.
+            The program is always added to all_programs_by_id regardless of the return value.
+        """
+        # Always store the program in the dictionary of all programs
+        self.all_programs_by_id[program_entry.id] = program_entry
+        
+        # Try to add it to the MAP-Elites archive
+        return self.map_elites_archive.add_program(program_entry, self.primary_score_key)
+    
+    def get_program_by_id(self, program_id: str) -> Optional[ProgramEntry]:
+        """
+        Retrieve a program entry by its ID.
+        
+        Args:
+            program_id: The unique identifier of the program entry
+            
+        Returns:
+            The program entry if found, None otherwise
+        """
+        return self.all_programs_by_id.get(program_id)
+    
+    def sample_programs_for_prompting(
+        self, 
+        num_parents: int, 
+        num_inspirations: int
+    ) -> Tuple[List[ProgramEntry], List[ProgramEntry]]:
+        """
+        Sample programs from the MAP-Elites archive for use in prompt generation.
+        
+        Args:
+            num_parents: Number of parent programs to sample
+            num_inspirations: Number of inspiration programs to sample
+            
+        Returns:
+            A tuple containing two lists: (parent_programs, inspiration_programs)
+            If not enough distinct programs are available, the lists may be smaller
+            than requested.
+        """
+        all_elites = self.map_elites_archive.get_random_elites(num_parents + num_inspirations)
+        
+        if len(all_elites) <= num_parents:
+            # Not enough elites for both parents and inspirations
+            return all_elites, []
+        
+        # Split the available elites between parents and inspirations
+        parents = all_elites[:num_parents]
+        inspirations = all_elites[num_parents:num_parents + num_inspirations]
+        
+        return parents, inspirations
+    
+    def trigger_migration(self, other_db: 'ProgramDatabase', num_to_migrate: int) -> None:
+        """
+        Placeholder for island model migration functionality.
+        
+        This method will be implemented in the future to support migration
+        between different program databases in a distributed setup.
+        
+        Args:
+            other_db: The target program database to migrate programs to
+            num_to_migrate: The number of programs to migrate
+        """
+        print(f"Migration of {num_to_migrate} programs triggered (not yet implemented)")
+        pass
