@@ -5,6 +5,7 @@ build/
 dist/
 wheels/
 *.egg-info
+repomix-output.xml
 
 # Virtual environments
 .venv
