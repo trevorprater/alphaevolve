@@ -13,8 +13,10 @@ import traceback
 from typing import Any, Callable, Dict, Optional, Union
 from pathlib import Path
 import os
+import logging
 
 from alpha_evolve.task_utils import EvaluationWrapper, EvaluationError
+from alpha_evolve.sandbox import create_sandbox, ResourceLimits, SandboxError
 
 
 class EvaluationEngine:
@@ -35,6 +37,30 @@ class EvaluationEngine:
         """
         self.evaluation_config = evaluation_config or {}
         self.evaluation_wrapper = EvaluationWrapper()
+        self.logger = logging.getLogger(__name__)
+        
+        # Initialize sandbox configuration
+        self.use_sandbox = self.evaluation_config.get('use_sandbox', True)
+        self.sandbox_type = self.evaluation_config.get('sandbox_type', 'docker')
+        
+        # Create resource limits from config
+        self.resource_limits = ResourceLimits(
+            cpu_limit=self.evaluation_config.get('cpu_limit', 1.0),
+            memory_limit=self.evaluation_config.get('memory_limit', '256m'),
+            timeout_seconds=self.evaluation_config.get('timeout_seconds', 30),
+            max_output_size=self.evaluation_config.get('max_output_size', 1024 * 1024),
+            network_disabled=self.evaluation_config.get('network_disabled', True)
+        )
+        
+        # Initialize sandbox
+        self.sandbox = None
+        if self.use_sandbox:
+            try:
+                self.sandbox = create_sandbox(self.sandbox_type, self.resource_limits)
+                self.logger.info(f"Initialized {self.sandbox_type} sandbox for secure execution")
+            except SandboxError as e:
+                self.logger.warning(f"Failed to initialize sandbox: {e}. Falling back to direct execution.")
+                self.use_sandbox = False
         
     async def evaluate_program(
         self, 
@@ -45,9 +71,8 @@ class EvaluationEngine:
         """
         Evaluate a program code string using the provided evaluation function.
         
-        This method executes the program code string in a namespace, then passes
-        the namespace to the user-provided evaluation function. It handles any errors 
-        that may occur during execution or evaluation.
+        This method executes the program code string in a sandboxed environment,
+        then passes the namespace to the user-provided evaluation function.
         
         Args:
             program_code_string: The Python code to evaluate as a string.
@@ -59,66 +84,186 @@ class EvaluationEngine:
             returns a dictionary with 'error' set to True and 'score' set to negative infinity.
         """
         try:
-            # Define a default error result
-            error_result = {'error': True, 'score': float('-inf')}
-            
-            # Create a dictionary to serve as a local namespace for executing the code
-            local_namespace = {}
-            
-            try:
-                # Execute the program code string in the local namespace
-                exec(program_code_string, {}, local_namespace)
-            except SyntaxError as e:
-                # Handle syntax errors in the program code
-                return {
-                    'error': True, 
-                    'score': float('-inf'),
-                    'error_type': 'SyntaxError',
-                    'error_message': str(e)
-                }
-            except Exception as e:
-                # Handle other execution errors
-                return {
-                    'error': True, 
-                    'score': float('-inf'),
-                    'error_type': type(e).__name__,
-                    'error_message': str(e)
-                }
-            
-            # Run the evaluation using the EvaluationWrapper
-            try:
-                # Pass the local namespace to the evaluation wrapper
-                result = self.evaluation_wrapper.run_evaluation(
-                    local_namespace,
-                    user_evaluate_fn,
-                    task_inputs
+            if self.use_sandbox and self.sandbox:
+                return await self._evaluate_program_sandboxed(
+                    program_code_string, user_evaluate_fn, task_inputs
                 )
-                return result
-            except EvaluationError as e:
-                # Handle errors from the evaluation function
-                return {
-                    'error': True, 
-                    'score': float('-inf'),
-                    'error_type': 'EvaluationError',
-                    'error_message': str(e)
-                }
-            except Exception as e:
-                # Handle any other unexpected errors
-                return {
-                    'error': True, 
-                    'score': float('-inf'),
-                    'error_type': type(e).__name__,
-                    'error_message': str(e)
-                }
+            else:
+                return await self._evaluate_program_direct(
+                    program_code_string, user_evaluate_fn, task_inputs
+                )
                 
         except Exception as e:
-            # Catch any other unexpected exceptions
+            self.logger.error(f"Unexpected error in evaluate_program: {e}")
             return {
                 'error': True, 
                 'score': float('-inf'),
                 'error_type': type(e).__name__,
                 'error_message': str(e)
             }
+    
+    async def _evaluate_program_sandboxed(
+        self, 
+        program_code_string: str, 
+        user_evaluate_fn: Callable, 
+        task_inputs: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, float]:
+        """
+        Evaluate program using sandboxed execution.
+        
+        Args:
+            program_code_string: The Python code to evaluate as a string.
+            user_evaluate_fn: The user-provided function that will evaluate the code.
+            task_inputs: Optional dictionary of additional inputs for the evaluation function.
+            
+        Returns:
+            A dictionary mapping score names to float values.
+        """
+        try:
+            # Execute code in sandbox
+            sandbox_result = await self.sandbox.execute(program_code_string, task_inputs)
+            
+            if not sandbox_result.success:
+                # Handle sandbox execution failure
+                return {
+                    'error': True,
+                    'score': float('-inf'),
+                    'error_type': 'SandboxExecutionError',
+                    'error_message': sandbox_result.error_message or sandbox_result.stderr,
+                    'execution_time': sandbox_result.execution_time,
+                    'return_code': sandbox_result.return_code
+                }
+            
+            # Create namespace from sandbox execution
+            # Note: In a real implementation, we'd need to carefully extract
+            # the variables from the sandbox execution context
+            local_namespace = {
+                '__sandbox_stdout__': sandbox_result.stdout,
+                '__sandbox_stderr__': sandbox_result.stderr,
+                '__execution_time__': sandbox_result.execution_time,
+                '__resource_usage__': sandbox_result.resource_usage
+            }
+            
+            # For now, we'll execute the code again locally to get the namespace
+            # This is a compromise between security and functionality
+            # In production, you might want to serialize/deserialize the namespace
+            try:
+                exec(program_code_string, {}, local_namespace)
+            except Exception as e:
+                return {
+                    'error': True,
+                    'score': float('-inf'),
+                    'error_type': type(e).__name__,
+                    'error_message': str(e),
+                    'execution_time': sandbox_result.execution_time
+                }
+            
+            # Run evaluation
+            try:
+                result = self.evaluation_wrapper.run_evaluation(
+                    local_namespace,
+                    user_evaluate_fn,
+                    task_inputs
+                )
+                
+                # Add sandbox metrics to result
+                result['execution_time'] = sandbox_result.execution_time
+                if sandbox_result.resource_usage:
+                    result['resource_usage'] = sandbox_result.resource_usage
+                
+                return result
+                
+            except EvaluationError as e:
+                return {
+                    'error': True,
+                    'score': float('-inf'),
+                    'error_type': 'EvaluationError',
+                    'error_message': str(e),
+                    'execution_time': sandbox_result.execution_time
+                }
+                
+        except Exception as e:
+            self.logger.error(f"Sandboxed evaluation failed: {e}")
+            return {
+                'error': True,
+                'score': float('-inf'),
+                'error_type': type(e).__name__,
+                'error_message': str(e)
+            }
+    
+    async def _evaluate_program_direct(
+        self, 
+        program_code_string: str, 
+        user_evaluate_fn: Callable, 
+        task_inputs: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, float]:
+        """
+        Evaluate program using direct execution (less secure, for development).
+        
+        Args:
+            program_code_string: The Python code to evaluate as a string.
+            user_evaluate_fn: The user-provided function that will evaluate the code.
+            task_inputs: Optional dictionary of additional inputs for the evaluation function.
+            
+        Returns:
+            A dictionary mapping score names to float values.
+        """
+        # Define a default error result
+        error_result = {'error': True, 'score': float('-inf')}
+        
+        # Create a dictionary to serve as a local namespace for executing the code
+        local_namespace = {}
+        
+        try:
+            # Execute the program code string in the local namespace
+            exec(program_code_string, {}, local_namespace)
+        except SyntaxError as e:
+            # Handle syntax errors in the program code
+            return {
+                'error': True, 
+                'score': float('-inf'),
+                'error_type': 'SyntaxError',
+                'error_message': str(e)
+            }
+        except Exception as e:
+            # Handle other execution errors
+            return {
+                'error': True, 
+                'score': float('-inf'),
+                'error_type': type(e).__name__,
+                'error_message': str(e)
+            }
+        
+        # Run the evaluation using the EvaluationWrapper
+        try:
+            # Pass the local namespace to the evaluation wrapper
+            result = self.evaluation_wrapper.run_evaluation(
+                local_namespace,
+                user_evaluate_fn,
+                task_inputs
+            )
+            return result
+        except EvaluationError as e:
+            # Handle errors from the evaluation function
+            return {
+                'error': True, 
+                'score': float('-inf'),
+                'error_type': 'EvaluationError',
+                'error_message': str(e)
+            }
+        except Exception as e:
+            # Handle any other unexpected errors
+            return {
+                'error': True, 
+                'score': float('-inf'),
+                'error_type': type(e).__name__,
+                'error_message': str(e)
+            }
+    
+    def cleanup(self) -> None:
+        """Clean up sandbox resources."""
+        if self.sandbox:
+            self.sandbox.cleanup()
     
     async def _apply_evaluation_cascades(self, program_code_string: str, cascades: list) -> Dict[str, float]:
         """

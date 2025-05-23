@@ -66,7 +66,9 @@ def some_other_function(x):
 @pytest.mark.asyncio
 async def test_evaluate_valid_program():
     """Test evaluating a valid program with the expected function."""
-    engine = EvaluationEngine()
+    # Disable sandboxing for existing tests
+    config = {'use_sandbox': False}
+    engine = EvaluationEngine(config)
     result = await engine.evaluate_program(VALID_PROGRAM_CODE, evaluate_function_in_namespace)
     
     assert "error" not in result
@@ -79,7 +81,8 @@ async def test_evaluate_valid_program():
 @pytest.mark.asyncio
 async def test_evaluate_syntax_error():
     """Test evaluating a program with syntax errors."""
-    engine = EvaluationEngine()
+    config = {'use_sandbox': False}
+    engine = EvaluationEngine(config)
     result = await engine.evaluate_program(SYNTAX_ERROR_CODE, evaluate_function_in_namespace)
     
     assert "error" in result
@@ -91,7 +94,8 @@ async def test_evaluate_syntax_error():
 @pytest.mark.asyncio
 async def test_evaluate_runtime_error():
     """Test evaluating a program that raises a runtime error during evaluation."""
-    engine = EvaluationEngine()
+    config = {'use_sandbox': False}
+    engine = EvaluationEngine(config)
     result = await engine.evaluate_program(RUNTIME_ERROR_CODE, evaluate_function_in_namespace)
     
     assert "error" in result
@@ -102,7 +106,8 @@ async def test_evaluate_runtime_error():
 @pytest.mark.asyncio
 async def test_evaluate_missing_function():
     """Test evaluating a program that doesn't define the expected function."""
-    engine = EvaluationEngine()
+    config = {'use_sandbox': False}
+    engine = EvaluationEngine(config)
     result = await engine.evaluate_program(MISSING_FUNCTION_CODE, evaluate_function_in_namespace)
     
     assert "error" in result
@@ -120,7 +125,8 @@ async def test_evaluation_with_task_inputs():
         score = solution_fn(5) / 25  # 1.0 if correct
         return {"score": score if score >= threshold else 0.0}
     
-    engine = EvaluationEngine()
+    config = {'use_sandbox': False}
+    engine = EvaluationEngine(config)
     
     # With default threshold
     result1 = await engine.evaluate_program(VALID_PROGRAM_CODE, evaluate_with_inputs)
