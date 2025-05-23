@@ -34,4 +34,10 @@ node_modules/
 .DS_Store
 # Task files
 tasks.json
-tasks/ 
+tasks/
+.cursor/
+.roo/
+.roomodes
+.taskmasterconfig
+.windsurfrules
+site/
