@@ -184,10 +184,16 @@ AlphaEvolve supports the latest LLM models for code generation:
    - CVT-MAP-Elites with Voronoi tessellation and adaptive centroids
    - Adaptive archives with dynamic bin splitting
    - Hierarchical archives with multi-resolution exploration
+   - Production-grade diversity-aware program selection
+
+10. **Sophisticated Diversity Metrics** (`diversity_metrics.py`)
+    - 4 distinct diversity metrics: Semantic, Behavioral, Structural, Textual
+    - CompositeDiversityMetric with configurable weights and detailed scoring
+    - Performance-optimized implementations for large archive analysis
 
 ## 🧪 Testing
 
-AlphaEvolve includes a comprehensive test suite with 322 tests covering all components:
+AlphaEvolve includes a comprehensive test suite with 371 tests covering all components:
 
 ```bash
 # Run all tests

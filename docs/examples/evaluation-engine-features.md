@@ -2,7 +2,7 @@
 
 This guide demonstrates how to use the advanced evaluation features introduced in the production-grade evaluation engine.
 
-> **Note:** This documentation is automatically updated when evaluation engine features are modified. Last updated: January 2025 (Task 17)
+> **Note:** This documentation is automatically updated when evaluation engine features are modified. Last updated: January 2025 (Task 17, 18-5)
 
 ## Evaluation Cascades
 
@@ -310,6 +310,105 @@ if __name__ == "__main__":
     asyncio.run(main())
 ```
 
+## Diversity-Aware Evaluation Integration
+
+The evaluation engine works seamlessly with the advanced diversity metrics system for comprehensive program assessment:
+
+```python
+from alpha_evolve.diversity_metrics import get_diversity_metric
+from alpha_evolve.advanced_map_elites import CVTMAPElitesArchive
+from alpha_evolve.evaluation_engine import EvaluationEngine
+
+class DiversityAwareEvaluationController:
+    def __init__(self):
+        self.engine = EvaluationEngine()
+        self.diversity_metric = get_diversity_metric()
+        self.archive = CVTMAPElitesArchive(feature_dimensions=3, num_centroids=100)
+    
+    async def evaluate_with_diversity(self, programs, task_inputs):
+        """Evaluate programs considering both performance and diversity"""
+        
+        # Standard performance evaluation
+        performance_results = await self.engine.evaluate_programs_parallel(
+            programs, task_inputs, max_concurrent=4
+        )
+        
+        # Calculate diversity scores for archive integration
+        enhanced_results = []
+        
+        for i, (program, perf_result) in enumerate(zip(programs, performance_results)):
+            # Get diverse elites from archive for comparison
+            diverse_elites = self.archive.get_diverse_elites(count=10, diversity_threshold=0.3)
+            
+            # Calculate diversity to existing archive members
+            diversity_scores = []
+            for elite in diverse_elites:
+                div_score = self.diversity_metric.calculate_diversity(program, elite.code)
+                diversity_scores.append(div_score.total_score)
+            
+            avg_diversity = sum(diversity_scores) / len(diversity_scores) if diversity_scores else 0.5
+            
+            enhanced_result = {
+                'performance_score': perf_result['score'],
+                'diversity_score': avg_diversity,
+                'combined_score': perf_result['score'] * 0.7 + avg_diversity * 0.3,
+                'semantic_diversity': sum(ds.semantic_score for ds in 
+                                        [self.diversity_metric.calculate_diversity(program, e.code) 
+                                         for e in diverse_elites[:5]]) / 5 if diverse_elites else 0.0,
+                'structural_diversity': sum(ds.structural_score for ds in 
+                                          [self.diversity_metric.calculate_diversity(program, e.code) 
+                                           for e in diverse_elites[:5]]) / 5 if diverse_elites else 0.0
+            }
+            enhanced_results.append(enhanced_result)
+        
+        return enhanced_results
+    
+    def get_archive_diversity_stats(self):
+        """Get comprehensive diversity statistics from the archive"""
+        return self.archive.get_diversity_statistics()
+
+# Usage example with diversity-aware evaluation
+async def diversity_evaluation_example():
+    controller = DiversityAwareEvaluationController()
+    
+    # Sample programs with varying approaches
+    programs = [
+        # Recursive approach
+        "def factorial(n): return 1 if n <= 1 else n * factorial(n-1)",
+        # Iterative approach  
+        "def factorial(n):\n    result = 1\n    for i in range(1, n+1): result *= i\n    return result",
+        # Mathematical approach
+        "def factorial(n): import math; return math.factorial(n)",
+        # Functional approach
+        "def factorial(n): from functools import reduce; return reduce(lambda x, y: x*y, range(1, n+1), 1)"
+    ]
+    
+    task_inputs = {'test_cases': [{'n': 5, 'expected': 120}]}
+    
+    # Evaluate with diversity awareness
+    results = await controller.evaluate_with_diversity(programs, task_inputs)
+    
+    print("Diversity-Aware Evaluation Results:")
+    for i, result in enumerate(results):
+        print(f"Program {i+1}:")
+        print(f"  Performance: {result['performance_score']:.3f}")
+        print(f"  Diversity: {result['diversity_score']:.3f}")
+        print(f"  Combined: {result['combined_score']:.3f}")
+        print(f"  Semantic Diversity: {result['semantic_diversity']:.3f}")
+        print(f"  Structural Diversity: {result['structural_diversity']:.3f}")
+        print()
+    
+    # Show archive diversity statistics
+    diversity_stats = controller.get_archive_diversity_stats()
+    print("Archive Diversity Statistics:")
+    print(f"  Average Diversity: {diversity_stats['avg_diversity_per_cell']:.3f}")
+    print(f"  Archive Diversity Score: {diversity_stats['archive_diversity_score']:.3f}")
+    print(f"  Diversity Mode Enabled: {diversity_stats['diversity_mode_enabled']}")
+
+# Run the diversity-aware example
+asyncio.run(diversity_evaluation_example())
+```
+
 ## Best Practices
 
 1. **Cascade Design**: Order evaluations from fastest to most expensive, with appropriate thresholds
@@ -317,6 +416,8 @@ if __name__ == "__main__":
 3. **Parallel Evaluation**: Use concurrency limits to avoid overwhelming system resources
 4. **Cache Management**: Monitor hit rates and adjust cache size based on memory constraints
 5. **Feature Engineering**: Design meaningful features for approximation (code complexity, algorithm type, etc.)
+6. **Diversity Integration**: Balance performance and diversity scores based on exploration vs. exploitation needs
+7. **Archive Maintenance**: Use diversity-aware elite selection to maintain high-quality, diverse program populations
 
 ## Performance Tuning
 
@@ -324,3 +425,5 @@ if __name__ == "__main__":
 - **K-Neighbors**: More neighbors improve approximation accuracy but increase computation
 - **Concurrency**: Balance parallelism with system resources and evaluation complexity
 - **Threshold Tuning**: Adjust cascade thresholds based on evaluation cost vs. accuracy trade-offs
+- **Diversity Sampling**: Use sampling strategies for large archives to maintain O(k²) complexity instead of O(n²)
+- **Archive Integration**: Configure diversity thresholds based on archive size and exploration requirements
