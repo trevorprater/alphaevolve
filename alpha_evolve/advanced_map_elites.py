@@ -586,6 +586,10 @@ class AdaptiveMAPElitesArchive(AdvancedArchiveInterface):
         self.program_count = 0
         self.adaptation_count = 0
         
+        # Diversity metrics
+        self.diversity_metric = get_diversity_metric()
+        self.enable_diversity_mode = True
+        
         self.logger = logging.getLogger(__name__ + ".AdaptiveMAPElitesArchive")
     
     def _initialize_uniform_binning(self) -> Dict[str, List[float]]:
@@ -830,22 +834,191 @@ class AdaptiveMAPElitesArchive(AdvancedArchiveInterface):
         return True
     
     def get_diverse_elites(self, count: int, diversity_threshold: float = 0.5) -> List[ProgramEntry]:
-        """Get diverse elite programs from the adaptive archive."""
-        # Simple implementation - get random elites
-        # In a full implementation, would use diversity metrics
-        return self.get_random_elites(count)
+        """Get diverse elite programs from the adaptive archive using sophisticated diversity metrics."""
+        if not self.enable_diversity_mode:
+            return self.get_random_elites(count)
+        
+        # Get all non-empty cells
+        non_empty_cells = [cell for cell in self.cells.values() if cell.elite is not None]
+        
+        if not non_empty_cells:
+            return []
+        
+        selected_programs = []
+        
+        # Start with the best program overall across all bins
+        best_cell = max(non_empty_cells, key=lambda c: max(c.elite.scores.values()))
+        selected_programs.append(best_cell.elite)
+        
+        # Consider bin quality distribution for diversity
+        bin_quality_distribution = self._analyze_bin_quality_distribution(non_empty_cells)
+        
+        # Greedily select diverse programs considering bin distribution and individual diversity
+        while len(selected_programs) < count and len(selected_programs) < len(non_empty_cells):
+            best_candidate = None
+            best_diversity_score = -1
+            
+            for cell in non_empty_cells:
+                candidate = cell.elite
+                
+                # Skip if already selected
+                if candidate in selected_programs:
+                    continue
+                
+                # Calculate diversity score considering:
+                # 1. Individual program diversity to selected programs
+                # 2. Bin distribution diversity (prefer programs from underrepresented bins)
+                # 3. Adaptive binning quality (prefer programs from high-performance adaptive regions)
+                
+                min_program_diversity = float('inf')
+                for selected in selected_programs:
+                    div_score = self.diversity_metric.calculate_diversity(
+                        candidate.code, selected.code
+                    )
+                    min_program_diversity = min(min_program_diversity, div_score.total_score)
+                
+                # Bin coordinates for this candidate
+                candidate_coords = self._get_bin_coordinates(candidate.features)
+                if candidate_coords is None:
+                    continue
+                
+                # Bin distribution factor (prefer underrepresented bins)
+                bin_representation_factor = self._calculate_bin_representation_factor(
+                    candidate_coords, selected_programs
+                )
+                
+                # Adaptive quality factor (prefer bins with good adaptation)
+                adaptive_quality_factor = self._calculate_adaptive_quality_factor(
+                    candidate_coords, bin_quality_distribution
+                )
+                
+                # Combined diversity score
+                combined_diversity = (
+                    min_program_diversity * 0.6 +  # Individual diversity (primary)
+                    bin_representation_factor * 0.25 +  # Bin diversity (secondary)
+                    adaptive_quality_factor * 0.15  # Adaptive quality (tertiary)
+                )
+                
+                # Select candidate with highest combined diversity above threshold
+                if combined_diversity > best_diversity_score and min_program_diversity >= diversity_threshold:
+                    best_diversity_score = combined_diversity
+                    best_candidate = candidate
+            
+            if best_candidate is None:
+                # Fallback: select from remaining cells with lower threshold
+                remaining_cells = [c for c in non_empty_cells if c.elite not in selected_programs]
+                if remaining_cells:
+                    # Select the best quality among remaining
+                    fallback_cell = max(remaining_cells, key=lambda c: max(c.elite.scores.values()))
+                    selected_programs.append(fallback_cell.elite)
+                else:
+                    break
+            else:
+                selected_programs.append(best_candidate)
+        
+        return selected_programs
+    
+    def _analyze_bin_quality_distribution(self, non_empty_cells: List[ArchiveCell]) -> Dict[Tuple[int, ...], float]:
+        """Analyze the quality distribution across bins."""
+        bin_quality = {}
+        
+        for cell in non_empty_cells:
+            if cell.elite is not None:
+                coords = self._get_bin_coordinates(cell.elite.features)
+                if coords is not None:
+                    # Use the maximum score across all objectives as quality
+                    quality = max(cell.elite.scores.values()) if cell.elite.scores else 0.0
+                    bin_quality[coords] = max(bin_quality.get(coords, 0.0), quality)
+        
+        return bin_quality
+    
+    def _calculate_bin_representation_factor(self, coords: Tuple[int, ...], selected_programs: List[ProgramEntry]) -> float:
+        """Calculate how underrepresented this bin is among selected programs."""
+        if not selected_programs:
+            return 1.0
+        
+        # Count how many selected programs are from the same bin
+        bin_count = 0
+        for program in selected_programs:
+            program_coords = self._get_bin_coordinates(program.features)
+            if program_coords == coords:
+                bin_count += 1
+        
+        # Return inverse representation (higher for underrepresented bins)
+        # Add 1 to avoid division by zero, normalize by total selected
+        representation_ratio = bin_count / len(selected_programs)
+        return 1.0 / (1.0 + representation_ratio * 4)  # Scale factor to make meaningful
+    
+    def _calculate_adaptive_quality_factor(self, coords: Tuple[int, ...], bin_quality_distribution: Dict[Tuple[int, ...], float]) -> float:
+        """Calculate the adaptive quality factor for a bin."""
+        if not bin_quality_distribution:
+            return 0.5  # Neutral factor
+        
+        # Get quality for this bin
+        bin_quality = bin_quality_distribution.get(coords, 0.0)
+        
+        # Normalize by max quality across all bins
+        max_quality = max(bin_quality_distribution.values()) if bin_quality_distribution else 1.0
+        if max_quality == 0:
+            return 0.5
+        
+        return bin_quality / max_quality
     
     def get_diversity_statistics(self) -> Dict[str, Any]:
         """Get diversity statistics for the adaptive archive."""
         non_empty_cells = [cell for cell in self.cells.values() if cell.elite is not None]
         
+        if not non_empty_cells:
+            return {
+                'total_cells': len(self.cells),
+                'occupied_cells': 0,
+                'avg_diversity_per_cell': 0.0,
+                'max_diversity_per_cell': 0.0,
+                'archive_diversity_score': 0.0,
+                'diversity_mode_enabled': self.enable_diversity_mode
+            }
+        
+        # Calculate cell-level diversity statistics if diversity metric is available
+        avg_diversity = 0.0
+        max_diversity = 0.0
+        archive_diversity = 0.0
+        
+        if hasattr(self, 'diversity_metric') and self.diversity_metric is not None:
+            # Sample pairs of elites for diversity calculation
+            elites = [cell.elite for cell in non_empty_cells if cell.elite is not None]
+            
+            if len(elites) >= 2:
+                diversities = []
+                
+                # Calculate pairwise diversities (sample to avoid O(n²) complexity)
+                sample_size = min(20, len(elites))  # Limit to 20 for performance
+                sample_elites = random.sample(elites, sample_size) if len(elites) > sample_size else elites
+                
+                for i in range(len(sample_elites)):
+                    for j in range(i + 1, len(sample_elites)):
+                        div_score = self.diversity_metric.calculate_diversity(
+                            sample_elites[i].code, sample_elites[j].code
+                        )
+                        diversities.append(div_score.total_score)
+                
+                if diversities:
+                    avg_diversity = np.mean(diversities)
+                    max_diversity = np.max(diversities)
+                    archive_diversity = avg_diversity
+        
         return {
             'total_cells': len(self.cells),
             'occupied_cells': len(non_empty_cells),
-            'avg_diversity_per_cell': 0.0,  # Placeholder
-            'max_diversity_per_cell': 0.0,  # Placeholder
-            'archive_diversity_score': 0.0,  # Placeholder
-            'diversity_mode_enabled': False  # Not implemented for adaptive archive
+            'avg_diversity_per_cell': avg_diversity,
+            'max_diversity_per_cell': max_diversity,
+            'archive_diversity_score': archive_diversity,
+            'diversity_mode_enabled': getattr(self, 'enable_diversity_mode', False),
+            'adaptive_bins': {
+                'current_bins_per_dim': [len(set(coord[i] for coord in self.cells.keys())) 
+                                       for i in range(len(next(iter(self.cells.keys()), ())))],
+                'max_bins_per_dim': getattr(self, 'max_bins_per_dimension', 'unknown'),
+                'adaptation_threshold': getattr(self, 'adaptation_threshold', 'unknown')
+            }
         }
 
 
@@ -962,11 +1135,90 @@ class HierarchicalMAPElitesArchive(AdvancedArchiveInterface):
     
     def get_diverse_elites(self, count: int, diversity_threshold: float = 0.5) -> List[ProgramEntry]:
         """Get diverse elite programs from the hierarchical archive."""
-        # Simple implementation - get random elites from highest resolution
-        # In a full implementation, would use diversity metrics across all levels
-        if self.archives:
-            return self.archives[-1].get_random_elites(count)
-        return []
+        if not self.archives:
+            return []
+        
+        # Get diversity metric from the first archive (they should all use the same one)
+        diversity_metric = getattr(self.archives[0], 'diversity_metric', None)
+        if diversity_metric is None:
+            # Fallback to random selection if no diversity metric available
+            return self.get_random_elites(count)
+        
+        # Collect all unique elites from all resolution levels
+        all_elites = {}  # Use dict to avoid duplicates by ID
+        level_weights = []  # Weight for each resolution level
+        
+        for i, archive in enumerate(self.archives):
+            level_elites = archive.get_random_elites(count * 2)  # Get more candidates
+            level_weight = (i + 1) / len(self.archives)  # Higher resolution = higher weight
+            level_weights.append(level_weight)
+            
+            for elite in level_elites:
+                if elite.id not in all_elites:
+                    all_elites[elite.id] = (elite, level_weight)
+        
+        if not all_elites:
+            return []
+        
+        # Convert to list with weights
+        elite_candidates = list(all_elites.values())
+        
+        if len(elite_candidates) <= count:
+            return [elite for elite, _ in elite_candidates]
+        
+        selected_programs = []
+        
+        # Start with the highest quality program from the highest resolution level
+        best_elite = max(elite_candidates, 
+                        key=lambda x: (x[1], max(x[0].scores.values()) if x[0].scores else 0.0))
+        selected_programs.append(best_elite[0])
+        
+        # Greedily select diverse programs considering both diversity and resolution level
+        while len(selected_programs) < count:
+            best_candidate = None
+            best_score = -1
+            
+            for elite, level_weight in elite_candidates:
+                if elite in selected_programs:
+                    continue
+                
+                # Calculate minimum diversity to already selected programs
+                min_diversity = float('inf')
+                for selected in selected_programs:
+                    div_score = diversity_metric.calculate_diversity(elite.code, selected.code)
+                    min_diversity = min(min_diversity, div_score.total_score)
+                
+                # Skip if below diversity threshold
+                if min_diversity < diversity_threshold:
+                    continue
+                
+                # Calculate quality score
+                quality_score = max(elite.scores.values()) if elite.scores else 0.0
+                
+                # Combined score: diversity (60%) + quality (25%) + resolution level (15%)
+                combined_score = (
+                    min_diversity * 0.6 +
+                    quality_score * 0.25 +
+                    level_weight * 0.15
+                )
+                
+                if combined_score > best_score:
+                    best_score = combined_score
+                    best_candidate = elite
+            
+            if best_candidate is None:
+                # Fallback: select highest quality from remaining candidates
+                remaining_candidates = [elite for elite, _ in elite_candidates if elite not in selected_programs]
+                if remaining_candidates:
+                    fallback_elite = max(remaining_candidates, 
+                                       key=lambda e: max(e.scores.values()) if e.scores else 0.0)
+                    selected_programs.append(fallback_elite)
+                else:
+                    break
+            else:
+                selected_programs.append(best_candidate)
+        
+        return selected_programs
     
     def get_diversity_statistics(self) -> Dict[str, Any]:
         """Get diversity statistics for the hierarchical archive."""
@@ -974,14 +1226,52 @@ class HierarchicalMAPElitesArchive(AdvancedArchiveInterface):
         occupied_cells = sum(len([cell for cell in archive.cells.values() if cell.elite is not None]) 
                            for archive in self.archives)
         
+        # Calculate aggregate diversity statistics across all resolution levels
+        level_stats = []
+        overall_diversities = []
+        
+        for i, archive in enumerate(self.archives):
+            archive_stats = archive.get_diversity_statistics()
+            level_stats.append({
+                'resolution_level': self.resolution_levels[i],
+                'total_cells': archive_stats.get('total_cells', 0),
+                'occupied_cells': archive_stats.get('occupied_cells', 0),
+                'avg_diversity': archive_stats.get('avg_diversity_per_cell', 0.0),
+                'max_diversity': archive_stats.get('max_diversity_per_cell', 0.0),
+                'archive_diversity': archive_stats.get('archive_diversity_score', 0.0)
+            })
+            
+            # Collect diversity scores for overall calculation
+            if archive_stats.get('archive_diversity_score', 0.0) > 0:
+                overall_diversities.append(archive_stats['archive_diversity_score'])
+        
+        # Calculate overall statistics
+        avg_diversity_per_cell = np.mean([stats['avg_diversity'] for stats in level_stats]) if level_stats else 0.0
+        max_diversity_per_cell = np.max([stats['max_diversity'] for stats in level_stats]) if level_stats else 0.0
+        archive_diversity_score = np.mean(overall_diversities) if overall_diversities else 0.0
+        
+        # Check if any archive has diversity mode enabled
+        diversity_mode_enabled = any(
+            getattr(archive, 'enable_diversity_mode', False) 
+            for archive in self.archives
+        )
+        
         return {
             'total_cells': total_cells,
             'occupied_cells': occupied_cells,
             'resolution_levels': len(self.archives),
-            'avg_diversity_per_cell': 0.0,  # Placeholder
-            'max_diversity_per_cell': 0.0,  # Placeholder
-            'archive_diversity_score': 0.0,  # Placeholder
-            'diversity_mode_enabled': False  # Not implemented for hierarchical archive
+            'avg_diversity_per_cell': avg_diversity_per_cell,
+            'max_diversity_per_cell': max_diversity_per_cell,
+            'archive_diversity_score': archive_diversity_score,
+            'diversity_mode_enabled': diversity_mode_enabled,
+            'level_statistics': level_stats,
+            'hierarchical_metrics': {
+                'promotion_threshold': self.promotion_threshold,
+                'resolution_distribution': {
+                    level: stats['occupied_cells'] / max(stats['total_cells'], 1)
+                    for level, stats in zip(self.resolution_levels, level_stats)
+                }
+            }
         }
 
 
