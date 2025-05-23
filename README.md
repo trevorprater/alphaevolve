@@ -2,17 +2,17 @@
 
 AlphaEvolve is a Python-based system that combines evolutionary algorithms with Large Language Models (LLMs) to optimize and evolve code. It uses a MAP-Elites evolutionary algorithm to maintain a diverse population of code variants while optimizing for performance and other features.
 
-## =Ë Overview
+## =ï¿½ Overview
 
 AlphaEvolve identifies code blocks marked for evolution in your program, generates modifications using LLMs, evaluates their performance, and iteratively improves the code through a structured evolutionary process. The system maintains diversity by using a MAP-Elites archive that organizes program variants based on different feature dimensions.
 
 ### Key Features
 
-- >ì **Evolutionary Code Optimization** - Automatically evolves and optimizes code blocks
+- >ï¿½ **Evolutionary Code Optimization** - Automatically evolves and optimizes code blocks
 - > **LLM Integration** - Uses Large Language Models to generate code modifications
-- =Ê **MAP-Elites Archive** - Maintains diversity in the solution population
+- =ï¿½ **MAP-Elites Archive** - Maintains diversity in the solution population
 - = **Distributed Evolution** - Supports multiple evolutionary islands (planned)
-- =Ý **Diff-Based Modifications** - Uses diffs to apply precise, targeted code changes
+- =ï¿½ **Diff-Based Modifications** - Uses diffs to apply precise, targeted code changes
 
 ## =' Installation
 
@@ -27,7 +27,7 @@ cd alphaevolve
 python -m pip install -e ".[dev]"
 ```
 
-## =€ Usage
+## =ï¿½ Usage
 
 ### Basic Usage
 
@@ -52,15 +52,28 @@ python -m alpha_evolve.main
 
 ### Configuration
 
-The main configuration is defined in `alpha_evolve/main.py`. Key parameters include:
+AlphaEvolve uses a comprehensive configuration system with YAML/JSON files and environment variables:
 
-- `num_generations`: Number of evolutionary generations to run
-- `batch_size_new_programs`: Number of new programs to generate in each generation
-- `primary_score_key`: Key for the primary objective score (default: "objective")
-- `llm_type`: Type of LLM to use ("pro" or "flash")
-- `feature_dimensions_bins`: Bins for the MAP-Elites archive dimensions
+1. **Create configuration file:**
+```bash
+cp config/alphaevolve.example.yaml alphaevolve.yaml
+```
 
-## =Ú Core Components
+2. **Set LLM API keys:**
+```bash
+export OPENAI_API_KEY="your-openai-key"
+export ANTHROPIC_API_KEY="your-anthropic-key"
+```
+
+3. **Key configuration sections:**
+- `llm`: LLM provider settings (default_provider, API keys, rate limits)
+- `sandbox`: Code execution security (Docker/process isolation, resource limits)
+- `evolution`: Evolutionary parameters (generations, population size, mutation rates)
+- `database`: MAP-Elites archive settings (feature dimensions, bins)
+
+See `config/alphaevolve.example.yaml` for all available options.
+
+## =ï¿½ Core Components
 
 1. **Task Definition & Code Parsing** (`task_utils.py`) 
    - Defines task specifications
@@ -72,7 +85,7 @@ The main configuration is defined in `alpha_evolve/main.py`. Key parameters incl
 
 3. **LLM Interface** (`llm_interface.py`)
    - Interfaces with LLMs to generate code modifications
-   - Currently uses mock LLMs, with real LLM integration planned
+   - Supports OpenAI, Anthropic, and mock providers with rate limiting
 
 4. **Diff Applier** (`diff_applier.py`)
    - Applies LLM-generated diffs to code blocks
@@ -80,13 +93,14 @@ The main configuration is defined in `alpha_evolve/main.py`. Key parameters incl
 
 5. **Evaluation Engine** (`evaluation_engine.py`)
    - Evaluates modified code using user-provided functions
+   - Supports secure sandboxing with Docker and process isolation
    - Provides scores for the evolutionary process
 
 6. **Distributed Controller** (`controller.py`)
    - Orchestrates the evolutionary process
    - Manages communication between components
 
-## >ê Testing
+## >ï¿½ Testing
 
 Run the test suite with pytest:
 
@@ -101,20 +115,21 @@ pytest tests/test_task_utils.py
 pytest -xvs tests/
 ```
 
-## =È Future Development
+## =ï¿½ Future Development
 
 See the [TODO.md](TODO.md) file for planned enhancements, including:
 
 - Complete island model migration for distributed evolution
 - Enhanced MAP-Elites archive with visualization
-- Integration with real LLM APIs
-- Advanced security and sandboxing for code execution
+- âœ… ~~Integration with real LLM APIs~~ (Completed: OpenAI, Anthropic support)
+- âœ… ~~Advanced security and sandboxing for code execution~~ (Completed: Docker/process sandboxing)
+- âœ… ~~Configuration management system~~ (Completed: YAML/JSON with validation)
 - Performance optimizations and parallel evaluation
 
-## =Ä License
+## =ï¿½ License
 
 [Insert License Information Here]
 
-## =Ú References
+## =ï¿½ References
 
 - AlphaEvolve paper (see `paper/AlphaEvolve.pdf`)

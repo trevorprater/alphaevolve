@@ -21,8 +21,9 @@ AlphaEvolve is a Python-based system that uses evolutionary techniques combined 
    - Samples programs from the database to create LLM prompts
 
 4. **LLM Interface** (`alpha_evolve/llm_interface.py`)
-   - Sends prompts to code-generating LLMs
+   - Sends prompts to code-generating LLMs (OpenAI, Anthropic, Mock)
    - Processes the returned code modifications
+   - Supports multiple providers with rate limiting and error handling
 
 5. **Diff Applier** (`alpha_evolve/diff_applier.py`)
    - Applies LLM-generated diffs to code
@@ -30,16 +31,24 @@ AlphaEvolve is a Python-based system that uses evolutionary techniques combined 
 
 6. **Evaluation Engine** (`alpha_evolve/evaluation.py`)
    - Evaluates modified code using user-provided functions
+   - Supports secure sandboxing with Docker and process isolation
 
 7. **Distributed Controller** (`alpha_evolve/controller.py`)
    - Orchestrates the evolutionary process
    - Manages the main evolution loop
+
+8. **Configuration Management** (`alpha_evolve/config.py`)
+   - Pydantic-based configuration system with validation
+   - YAML/JSON file support with environment variable overlays
+   - Secure credential management for LLM providers
 
 ## Development Environment
 
 ### Dependencies
 - Python 3.12+
 - pytest 8.3.5+
+- pydantic-settings 2.11+ (for configuration management)
+- aiohttp 3.8+ (for async LLM API calls)
 
 ### Common Commands
 
@@ -54,6 +63,11 @@ pytest -xvs tests/                 # Run tests with verbose output
 
 # Running the main application
 python -m alpha_evolve.main        # Run the main evolution process
+
+# Configuration
+cp config/alphaevolve.example.yaml alphaevolve.yaml  # Create config from example
+export OPENAI_API_KEY="your-key"   # Set LLM API keys
+export ANTHROPIC_API_KEY="your-key"
 ```
 
 ## Code Conventions
@@ -63,3 +77,7 @@ python -m alpha_evolve.main        # Run the main evolution process
 - Follow PEP 8 style guidelines
 - Implement proper error handling with custom exceptions when needed
 - Use async/await for potentially long-running operations (especially LLM interactions)
+
+## Workflow Memories
+
+- git commit every atomic completed taskmaster task
