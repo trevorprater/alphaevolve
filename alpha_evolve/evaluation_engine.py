@@ -17,6 +17,7 @@ import logging
 
 from alpha_evolve.task_utils import EvaluationWrapper, EvaluationError
 from alpha_evolve.sandbox import create_sandbox, ResourceLimits, SandboxError
+from alpha_evolve.config import get_config
 
 
 class EvaluationEngine:
@@ -33,24 +34,39 @@ class EvaluationEngine:
         
         Args:
             evaluation_config: Optional configuration dictionary that may include
-                parameters like timeouts, sandboxing options, etc.
+                parameters like timeouts, sandboxing options, etc. If None, uses global config.
         """
-        self.evaluation_config = evaluation_config or {}
         self.evaluation_wrapper = EvaluationWrapper()
         self.logger = logging.getLogger(__name__)
         
-        # Initialize sandbox configuration
-        self.use_sandbox = self.evaluation_config.get('use_sandbox', True)
-        self.sandbox_type = self.evaluation_config.get('sandbox_type', 'docker')
-        
-        # Create resource limits from config
-        self.resource_limits = ResourceLimits(
-            cpu_limit=self.evaluation_config.get('cpu_limit', 1.0),
-            memory_limit=self.evaluation_config.get('memory_limit', '256m'),
-            timeout_seconds=self.evaluation_config.get('timeout_seconds', 30),
-            max_output_size=self.evaluation_config.get('max_output_size', 1024 * 1024),
-            network_disabled=self.evaluation_config.get('network_disabled', True)
-        )
+        # Get configuration from global config or override
+        config = get_config()
+        if evaluation_config:
+            # Override specific settings
+            self.use_sandbox = evaluation_config.get('use_sandbox', config.sandbox.enabled)
+            self.sandbox_type = evaluation_config.get('sandbox_type', config.sandbox.type)
+            
+            # Create resource limits from config override
+            self.resource_limits = ResourceLimits(
+                cpu_limit=evaluation_config.get('cpu_limit', config.sandbox.cpu_limit),
+                memory_limit=evaluation_config.get('memory_limit', config.sandbox.memory_limit),
+                timeout_seconds=evaluation_config.get('timeout_seconds', config.sandbox.timeout_seconds),
+                max_output_size=evaluation_config.get('max_output_size', config.sandbox.max_output_size),
+                network_disabled=evaluation_config.get('network_disabled', config.sandbox.network_disabled)
+            )
+        else:
+            # Use global configuration
+            self.use_sandbox = config.sandbox.enabled
+            self.sandbox_type = config.sandbox.type
+            
+            # Create resource limits from global config
+            self.resource_limits = ResourceLimits(
+                cpu_limit=config.sandbox.cpu_limit,
+                memory_limit=config.sandbox.memory_limit,
+                timeout_seconds=config.sandbox.timeout_seconds,
+                max_output_size=config.sandbox.max_output_size,
+                network_disabled=config.sandbox.network_disabled
+            )
         
         # Initialize sandbox
         self.sandbox = None

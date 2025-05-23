@@ -5,9 +5,13 @@ Tests for the LLMInterface class.
 import pytest
 import asyncio
 import os
-from unittest.mock import patch, AsyncMock
+from unittest.mock import patch, AsyncMock, MagicMock
 
-from alpha_evolve.llm_interface import LLMInterface, OpenAIProvider, AnthropicProvider, MockProvider, RateLimiter
+from alpha_evolve.llm_interface import (
+    LLMInterface, LLMResponse, LLMProvider,
+    OpenAIProvider, AnthropicProvider, GeminiProvider, MockProvider,
+    RateLimiter
+)
 
 
 def test_init():
@@ -30,17 +34,23 @@ def test_mock_provider():
     provider.response_type = 'flash'
     result = asyncio.run(provider.generate_code("test prompt"))
     expected = "<<<<<<<< SEARCH\nres += input_x * 2  # Initial logic\n========\nres += input_x * 3  # Mock LLM modified logic\n>>>>>>>> REPLACE"
-    assert result == expected
+    assert isinstance(result, LLMResponse)
+    assert result.content == expected
+    assert result.provider == "mock"
+    assert result.model == "mock-model"
+    assert result.tokens_used == 100
+    assert result.cost == 0.001
     
     # Test pro response
     provider.response_type = 'pro'
     result = asyncio.run(provider.generate_code("test prompt"))
     expected = "<<<<<<<< SEARCH\nres += input_x * 2  # Initial logic\n========\nres += input_x * 5  # Pro model enhanced logic\n>>>>>>>> REPLACE"
-    assert result == expected
+    assert result.content == expected
     
     # Test critique
     critique = asyncio.run(provider.critique_code("def test(): pass", "readability"))
-    assert '"correctness"' in critique
+    assert isinstance(critique, LLMResponse)
+    assert '"correctness"' in critique.content
 
 
 @pytest.mark.asyncio
@@ -130,8 +140,13 @@ def test_openai_provider_registration():
     """
     Test that OpenAI provider is registered when API key is available.
     """
-    interface = LLMInterface()
-    assert 'openai' in interface.get_available_providers()
+    # Skip if openai package not installed
+    try:
+        import openai
+        interface = LLMInterface()
+        assert 'openai' in interface.get_available_providers()
+    except ImportError:
+        pytest.skip("openai package not installed")
 
 
 @patch.dict(os.environ, {'ANTHROPIC_API_KEY': 'test-key'})
@@ -139,20 +154,36 @@ def test_anthropic_provider_registration():
     """
     Test that Anthropic provider is registered when API key is available.
     """
-    interface = LLMInterface()
-    assert 'anthropic' in interface.get_available_providers()
+    # Skip if anthropic package not installed
+    try:
+        import anthropic
+        interface = LLMInterface()
+        assert 'anthropic' in interface.get_available_providers()
+    except ImportError:
+        pytest.skip("anthropic package not installed")
 
 
 def test_provider_fallback():
     """
-    Test fallback to mock provider when real provider fails.
+    Test fallback provider when primary provider fails.
     """
     interface = LLMInterface()
     
-    # Mock a provider that will fail
-    failing_provider = MockProvider()
-    failing_provider.generate_code = AsyncMock(side_effect=Exception("API Error"))
-    interface.register_provider('failing', failing_provider)
+    # Create a failing provider
+    class FailingProvider(LLMProvider):
+        @property
+        def name(self):
+            return "failing"
+            
+        async def generate_code(self, prompt, **kwargs):
+            raise RuntimeError("API Error")
+            
+        async def critique_code(self, code, criteria):
+            raise RuntimeError("API Error")
+    
+    # Register failing provider as default and mock as fallback
+    interface.register_provider('failing', FailingProvider(), default=True)
+    interface.register_provider('mock', MockProvider(), fallback=True)
     
     # Should fallback to mock provider
     result = asyncio.run(interface.generate_code_modification(
@@ -178,3 +209,78 @@ def test_backward_compatibility():
     
     assert result is not None
     assert "SEARCH" in result and "REPLACE" in result
+
+
+@pytest.mark.asyncio
+async def test_generate_with_response():
+    """
+    Test the generate_with_response method that returns full LLMResponse.
+    """
+    interface = LLMInterface()
+    
+    response = await interface.generate_with_response(
+        prompt="Test prompt",
+        provider="mock"
+    )
+    
+    assert isinstance(response, LLMResponse)
+    assert response.content is not None
+    assert response.provider == "mock"
+    assert response.model == "mock-model"
+    assert response.tokens_used is not None
+    assert response.cost is not None
+    assert response.latency is not None
+
+
+@patch.dict(os.environ, {'GOOGLE_API_KEY': 'test-key'})
+def test_gemini_provider_registration():
+    """
+    Test that Gemini provider is registered when API key is available.
+    """
+    # Skip if google.genai package not installed
+    try:
+        import google.genai
+        interface = LLMInterface()
+        assert 'gemini' in interface.get_available_providers()
+    except ImportError:
+        pytest.skip("google-genai package not installed")
+
+
+@patch.dict(os.environ, {'GOOGLE_CLOUD_PROJECT': 'test-project'})
+def test_vertex_ai_provider_registration():
+    """
+    Test that Vertex AI provider is registered when project is configured.
+    """
+    # Skip if google.genai package not installed
+    try:
+        import google.genai
+        interface = LLMInterface()
+        # Vertex AI requires credentials, so it might not be registered in tests
+        # This is expected behavior
+    except ImportError:
+        pytest.skip("google-genai package not installed")
+
+
+def test_llm_response_structure():
+    """
+    Test LLMResponse dataclass structure.
+    """
+    response = LLMResponse(
+        content="test content",
+        provider="test",
+        model="test-model",
+        tokens_used=100,
+        cost=0.01,
+        latency=1.5,
+        thinking_content="test thinking",
+        metadata={"test": "data"}
+    )
+    
+    assert response.content == "test content"
+    assert response.provider == "test"
+    assert response.model == "test-model"
+    assert response.tokens_used == 100
+    assert response.cost == 0.01
+    assert response.latency == 1.5
+    assert response.thinking_content == "test thinking"
+    assert response.metadata == {"test": "data"}

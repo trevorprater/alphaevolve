@@ -5,37 +5,58 @@
 project_name: "AlphaEvolve"
 version: "1.0.0"
 environment: "development"  # development, staging, production
-debug: false
-
-# Paths
-config_dir: "~/.alphaevolve"
-data_dir: "./data"
-cache_dir: "./cache"
 
 # LLM Configuration
 llm:
-  default_provider: "openai"
-  fallback_provider: "mock"
+  default_provider: "anthropic"  # Primary provider to use
+  fallback_provider: "mock"      # Fallback if primary fails
   
   providers:
+    # OpenAI Configuration (supports o4, o3, o1 models)
     openai:
       api_key: "${OPENAI_API_KEY}"  # Set via environment variable
-      model: "gpt-4"
+      model: "o1-mini"            # Options: o4, o4-mini, o3, o1, o1-mini, gpt-4, gpt-4o
+      temperature: 0.2
+      max_tokens: 2000
+      timeout_seconds: 30
+      rate_limit_rpm: 60
+      # reasoning_effort: "medium"  # For o1 models: low, medium, high
+    
+    # Anthropic Configuration (supports Claude models with thinking)
+    anthropic:
+      api_key: "${ANTHROPIC_API_KEY}"
+      model: "claude-3-5-sonnet-v2"  # Options: claude-opus-4, claude-sonnet-4, claude-3-5-sonnet-v2
+      temperature: 0.2
+      max_tokens: 2000
+      timeout_seconds: 30
+      rate_limit_rpm: 50
+      use_thinking: true             # Enable thinking mode for Claude 4 models
+      thinking_budget: 8192          # Token budget for thinking
+    
+    # Google Gemini API Configuration
+    gemini:
+      api_key: "${GOOGLE_API_KEY}"
+      model: "gemini-2.5-flash"      # Options: gemini-2.5-flash, gemini-2.5-pro, gemini-2.0-flash
       temperature: 0.2
       max_tokens: 2000
       timeout_seconds: 30
       rate_limit_rpm: 60
     
-    anthropic:
-      api_key: "${ANTHROPIC_API_KEY}"
-      model: "claude-3-sonnet-20240229"
-      temperature: 0.1
+    # Vertex AI Configuration (requires Google Cloud credentials)
+    vertex_ai:
+      # No API key needed - uses Application Default Credentials
+      project: "${GOOGLE_CLOUD_PROJECT}"
+      location: "us-central1"
+      model: "gemini-2.5-flash"
+      temperature: 0.2
       max_tokens: 2000
       timeout_seconds: 30
       rate_limit_rpm: 60
     
+    # Mock Provider (for testing)
     mock:
       model: "mock-model"
+      response_type: "flash"         # Options: flash, pro
       temperature: 0.2
       max_tokens: 2000
 

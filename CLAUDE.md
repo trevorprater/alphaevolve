@@ -21,9 +21,14 @@ AlphaEvolve is a Python-based system that uses evolutionary techniques combined 
    - Samples programs from the database to create LLM prompts
 
 4. **LLM Interface** (`alpha_evolve/llm_interface.py`)
-   - Sends prompts to code-generating LLMs (OpenAI, Anthropic, Mock)
-   - Processes the returned code modifications
-   - Supports multiple providers with rate limiting and error handling
+   - Sends prompts to code-generating LLMs with modern SDK support
+   - Supports multiple providers:
+     - OpenAI: o4, o4-mini, o3, o1, o1-mini models
+     - Anthropic: claude-opus-4, claude-sonnet-4, claude-3-5-sonnet-v2 with thinking mode
+     - Google Gemini: gemini-2.5-flash, gemini-2.5-pro via API
+     - Vertex AI: Same Gemini models via Google Cloud
+   - Automatic fallback, rate limiting, and cost tracking
+   - Returns structured LLMResponse objects with metadata
 
 5. **Diff Applier** (`alpha_evolve/diff_applier.py`)
    - Applies LLM-generated diffs to code
@@ -56,6 +61,10 @@ AlphaEvolve is a Python-based system that uses evolutionary techniques combined 
 - aiohttp 3.8+ (for async LLM API calls)
 - mkdocs 1.6.1+ (for documentation)
 - mkdocs-material 9.6+ (for documentation theme)
+- Optional LLM SDKs:
+  - openai 1.0+ (for OpenAI models)
+  - anthropic 0.34+ (for Claude models)
+  - google-genai 0.1+ (for Gemini/Vertex AI)
 
 ### Common Commands
 
@@ -104,12 +113,15 @@ mkdocs build                       # Build documentation site
 
 ## Project Status
 
-### Completed Features (as of Task 15)
+### Completed Features (as of Task 16)
 - Core evolutionary algorithm with MAP-Elites
 - Task definition and code parsing
 - Program database with archive management
 - Prompt sampling system
-- Basic LLM interface (mock and OpenAI)
+- Modern LLM interface with multiple providers:
+  - OpenAI (o-series models)
+  - Anthropic (Claude models with thinking)
+  - Google Gemini/Vertex AI
 - Diff application system
 - Evaluation engine with sandboxing
 - Distributed controller
@@ -119,7 +131,6 @@ mkdocs build                       # Build documentation site
 - MkDocs-based documentation system
 
 ### Upcoming Tasks
-- Task 16: Real LLM Integration (Anthropic, OpenAI, Vertex AI, Gemini)
 - Task 17: Production-grade evaluation engine with robust sandboxing
 - Task 18: Advanced MAP-Elites variations
 - Task 19: Island model implementation
@@ -132,3 +143,4 @@ mkdocs build                       # Build documentation site
 - git commit every atomic completed taskmaster task
 - use uv instead of pip for package management
 - prioritize LLM providers: Anthropic, OpenAI, Vertex AI (Gemini), Gemini API
+- Ensure you view the latest docs related to LLM providers' python packages when working on LLM provider integrations. Use Tavily to find the docs and then retrieve the docs' web content to ensure our changes match the latest features / standards. For example, the anthropic client supports a 'thinking' parameter. You can also use your github mcp to get their code from github. In other words, we want to support the features that make these models unique and most effective.
