@@ -1,0 +1,134 @@
+# AlphaEvolve Configuration Example
+# Copy this file to alphaevolve.yaml and customize for your needs
+
+# Global settings
+project_name: "AlphaEvolve"
+version: "1.0.0"
+environment: "development"  # development, staging, production
+debug: false
+
+# Paths
+config_dir: "~/.alphaevolve"
+data_dir: "./data"
+cache_dir: "./cache"
+
+# LLM Configuration
+llm:
+  default_provider: "openai"
+  fallback_provider: "mock"
+  
+  providers:
+    openai:
+      api_key: "${OPENAI_API_KEY}"  # Set via environment variable
+      model: "gpt-4"
+      temperature: 0.2
+      max_tokens: 2000
+      timeout_seconds: 30
+      rate_limit_rpm: 60
+    
+    anthropic:
+      api_key: "${ANTHROPIC_API_KEY}"
+      model: "claude-3-sonnet-20240229"
+      temperature: 0.1
+      max_tokens: 2000
+      timeout_seconds: 30
+      rate_limit_rpm: 60
+    
+    mock:
+      model: "mock-model"
+      temperature: 0.2
+      max_tokens: 2000
+
+# Sandbox Configuration
+sandbox:
+  enabled: true
+  type: "docker"  # docker or process
+  
+  # Resource limits
+  cpu_limit: 1.0
+  memory_limit: "256m"
+  timeout_seconds: 30
+  max_output_size: 1048576  # 1MB
+  network_disabled: true
+  
+  # Docker settings
+  docker_image: "alphaevolve-sandbox:latest"
+  docker_pull_policy: "if_not_present"
+
+# Database Configuration
+database:
+  type: "memory"  # memory, sqlite, postgresql
+  # connection_string: "sqlite:///alphaevolve.db"
+  
+  # MAP-Elites settings
+  feature_dimensions: ["complexity", "performance"]
+  feature_bins: 10
+  
+  # Performance
+  batch_size: 100
+  connection_pool_size: 5
+  
+  # Persistence
+  checkpoint_interval: 100
+  auto_save: true
+
+# Evolution Configuration
+evolution:
+  population_size: 100
+  max_generations: 1000
+  elite_ratio: 0.1
+  
+  # Selection and mutation
+  selection_pressure: 2.0
+  mutation_rate: 0.1
+  crossover_rate: 0.8
+  
+  # Parallel processing
+  parallel_evaluations: 4
+  batch_evaluation: true
+  
+  # Migration (island model)
+  migration_interval: 50
+  migration_size: 5
+
+# Logging Configuration
+logging:
+  level: "INFO"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  
+  # File logging
+  file_enabled: true
+  file_path: "alphaevolve.log"
+  file_max_size: "10MB"
+  file_backup_count: 5
+  
+  # Console logging
+  console_enabled: true
+  console_level: "INFO"
+  
+  # Metrics
+  metrics_enabled: false
+  metrics_port: 8000
+
+# Security Configuration
+security:
+  # Credential encryption
+  encrypt_credentials: false
+  # encryption_key_path: "/path/to/encryption.key"
+  
+  # Sandbox security
+  strict_sandbox: true
+  allowed_imports:
+    - "math"
+    - "random"
+    - "json"
+    - "re"
+    - "datetime"
+  blocked_functions:
+    - "exec"
+    - "eval"
+    - "compile"
+    - "__import__"
+  
+  # Network security
+  allowed_domains: []
