@@ -2,19 +2,20 @@
 
 AlphaEvolve is a Python-based system that combines evolutionary algorithms with Large Language Models (LLMs) to optimize and evolve code. It uses a MAP-Elites evolutionary algorithm to maintain a diverse population of code variants while optimizing for performance and other features.
 
-## =� Overview
+## 🔬 Overview
 
 AlphaEvolve identifies code blocks marked for evolution in your program, generates modifications using LLMs, evaluates their performance, and iteratively improves the code through a structured evolutionary process. The system maintains diversity by using a MAP-Elites archive that organizes program variants based on different feature dimensions.
 
 ### Key Features
 
-- >� **Evolutionary Code Optimization** - Automatically evolves and optimizes code blocks
-- > **LLM Integration** - Uses Large Language Models to generate code modifications
-- =� **MAP-Elites Archive** - Maintains diversity in the solution population
-- = **Distributed Evolution** - Supports multiple evolutionary islands (planned)
-- =� **Diff-Based Modifications** - Uses diffs to apply precise, targeted code changes
+- 🧬 **Evolutionary Code Optimization** - Automatically evolves and optimizes code blocks
+- 🤖 **Modern LLM Integration** - Supports latest models from OpenAI, Anthropic, and Google
+- 📊 **MAP-Elites Archive** - Maintains diversity in the solution population
+- 🔒 **Secure Sandboxing** - Safe code execution with Docker/process isolation
+- 💾 **Persistent Storage** - Checkpoint and resume evolution experiments
+- 🎯 **Diff-Based Modifications** - Uses diffs to apply precise, targeted code changes
 
-## =' Installation
+## 📦 Installation
 
 AlphaEvolve requires Python 3.12 or newer.
 
@@ -23,11 +24,17 @@ AlphaEvolve requires Python 3.12 or newer.
 git clone https://github.com/your-username/alphaevolve.git
 cd alphaevolve
 
-# Install in development mode
+# Install using uv (recommended)
+uv pip install -e ".[dev]"
+
+# Or using pip
 python -m pip install -e ".[dev]"
+
+# Optional: Install LLM SDK packages
+uv pip install openai anthropic google-genai
 ```
 
-## =� Usage
+## 🚀 Usage
 
 ### Basic Usage
 
@@ -88,19 +95,51 @@ alphaevolve setup --template basic|research|production
 
 2. **Set LLM API keys:**
 ```bash
+# For OpenAI (o4, o3, o1 models)
 export OPENAI_API_KEY="your-openai-key"
+
+# For Anthropic (Claude models with thinking)
 export ANTHROPIC_API_KEY="your-anthropic-key"
+
+# For Google Gemini
+export GOOGLE_API_KEY="your-google-api-key"
+
+# For Vertex AI (Google Cloud)
+export GOOGLE_CLOUD_PROJECT="your-project-id"
+export GOOGLE_CLOUD_LOCATION="us-central1"
 ```
 
 3. **Key configuration sections:**
 - `llm`: LLM provider settings (default_provider, API keys, rate limits)
+  - Supports OpenAI (o4, o3, o1), Anthropic (Claude 4 with thinking), Google Gemini/Vertex AI
 - `sandbox`: Code execution security (Docker/process isolation, resource limits)
 - `evolution`: Evolutionary parameters (generations, population size, mutation rates)
 - `database`: MAP-Elites archive settings (feature dimensions, bins)
+- `persistence`: Checkpoint intervals and auto-save settings
 
 See `config/alphaevolve.example.yaml` for all available options.
 
-## =� Core Components
+## 🧩 Supported LLM Providers
+
+AlphaEvolve supports the latest LLM models for code generation:
+
+### OpenAI
+- **o4** / **o4-mini**: Most advanced reasoning models
+- **o3**: High-performance reasoning model
+- **o1** / **o1-mini**: Production reasoning models
+- **gpt-4** / **gpt-4o**: Standard GPT-4 models
+
+### Anthropic
+- **claude-opus-4**: Most capable model with thinking support
+- **claude-sonnet-4**: Balanced model with thinking support
+- **claude-3-5-sonnet-v2**: Fast, efficient model
+
+### Google
+- **gemini-2.5-flash**: Fast, efficient model
+- **gemini-2.5-pro**: Advanced capabilities
+- **Vertex AI**: Same models via Google Cloud
+
+## 🏗️ Core Components
 
 1. **Task Definition & Code Parsing** (`task_utils.py`) 
    - Defines task specifications
@@ -111,8 +150,9 @@ See `config/alphaevolve.example.yaml` for all available options.
    - Tracks all program variants through evolution
 
 3. **LLM Interface** (`llm_interface.py`)
-   - Interfaces with LLMs to generate code modifications
-   - Supports OpenAI, Anthropic, and mock providers with rate limiting
+   - Modern SDK integration with OpenAI, Anthropic, and Google
+   - Automatic fallback, rate limiting, and cost tracking
+   - Returns structured responses with metadata
 
 4. **Diff Applier** (`diff_applier.py`)
    - Applies LLM-generated diffs to code blocks
@@ -127,7 +167,7 @@ See `config/alphaevolve.example.yaml` for all available options.
    - Orchestrates the evolutionary process
    - Manages communication between components
 
-## >� Testing
+## 🧪 Testing
 
 Run the test suite with pytest:
 
@@ -140,25 +180,43 @@ pytest tests/test_task_utils.py
 
 # Run tests with verbose output
 pytest -xvs tests/
+
+# Test with LLM SDKs installed
+uv pip install openai anthropic google-genai
+pytest -xvs tests/test_llm_interface.py
 ```
 
-## =� Future Development
+## 📚 Documentation
+
+Full documentation is available at `docs/` and can be viewed with:
+
+```bash
+mkdocs serve
+```
+
+Key documentation:
+- [Getting Started Guide](docs/getting-started/quickstart.md)
+- [LLM Provider Setup](docs/getting-started/llm-setup.md)
+- [Configuration Reference](docs/user-guide/configuration-reference.md)
+- [API Reference](docs/api-reference/)
+
+## 🔮 Future Development
 
 See the [TODO.md](TODO.md) file for planned enhancements, including:
 
 - Complete island model migration for distributed evolution
 - Enhanced MAP-Elites archive with visualization
-- ✅ ~~Integration with real LLM APIs~~ (Completed: OpenAI, Anthropic support)
+- ✅ ~~Integration with real LLM APIs~~ (Completed: OpenAI, Anthropic, Google support)
 - ✅ ~~Advanced security and sandboxing for code execution~~ (Completed: Docker/process sandboxing)
 - ✅ ~~Configuration management system~~ (Completed: YAML/JSON with validation)
 - ✅ ~~CLI interface for user interaction~~ (Completed: Rich CLI with interactive monitoring)
 - ✅ ~~Persistent storage and checkpointing~~ (Completed: Auto-save, resume, backup system)
 - Performance optimizations and parallel evaluation
 
-## =� License
+## 📄 License
 
 [Insert License Information Here]
 
-## =� References
+## 📖 References
 
 - AlphaEvolve paper (see `paper/AlphaEvolve.pdf`)
