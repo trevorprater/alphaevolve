@@ -170,9 +170,24 @@ AlphaEvolve supports the latest LLM models for code generation:
    - Orchestrates the evolutionary process
    - Manages communication between components
 
+7. **Advanced Feature Extraction** (`feature_extraction.py`)
+   - AST-based code analysis with McCabe complexity and structure metrics
+   - Textual analysis for code quality, naming conventions, and patterns
+   - 12+ sophisticated features for comprehensive code characterization
+
+8. **Configurable Feature System** (`feature_configuration.py`)
+   - User-configurable feature functions with flexible API
+   - Multiple binning strategies (uniform, adaptive, custom, percentile)
+   - Runtime feature management with weights and validation
+
+9. **Advanced MAP-Elites Archives** (`advanced_map_elites.py`)
+   - CVT-MAP-Elites with Voronoi tessellation and adaptive centroids
+   - Adaptive archives with dynamic bin splitting
+   - Hierarchical archives with multi-resolution exploration
+
 ## 🧪 Testing
 
-AlphaEvolve includes a comprehensive test suite with 232 tests covering all components:
+AlphaEvolve includes a comprehensive test suite with 322 tests covering all components:
 
 ```bash
 # Run all tests
@@ -190,6 +205,12 @@ pytest -xvs tests/test_llm_interface.py tests/test_sdk_integration.py
 
 # Test advanced evaluation engine features
 pytest -xvs tests/test_evaluation_engine_advanced.py
+
+# Test advanced MAP-Elites implementations
+pytest -xvs tests/test_advanced_map_elites.py
+
+# Test sophisticated feature extraction
+pytest -xvs tests/test_feature_extraction.py tests/test_feature_configuration.py
 ```
 
 ## 📚 Documentation
@@ -218,7 +239,8 @@ See the [TODO.md](TODO.md) file for planned enhancements, including:
 - ✅ ~~CLI interface for user interaction~~ (Completed: Rich CLI with interactive monitoring)
 - ✅ ~~Persistent storage and checkpointing~~ (Completed: Auto-save, resume, backup system)
 - ✅ ~~Production-grade evaluation engine~~ (Completed: Cascades, approximation, parallel evaluation)
-- Enhanced MAP-Elites variations and distributed evolution
+- ✅ ~~Advanced MAP-Elites with sophisticated features~~ (Completed: CVT, adaptive, hierarchical archives with AST-based feature extraction)
+- Enhanced distributed evolution with island model implementation
 
 ## 📄 License
 
