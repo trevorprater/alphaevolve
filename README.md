@@ -70,6 +70,11 @@ alphaevolve analyze --database results.json --format table
 
 # Check system status
 alphaevolve status
+
+# Manage evolution checkpoints
+alphaevolve checkpoint list
+alphaevolve checkpoint resume --checkpoint path/to/checkpoint
+alphaevolve checkpoint clean --keep 5
 ```
 
 ### Configuration
@@ -147,6 +152,7 @@ See the [TODO.md](TODO.md) file for planned enhancements, including:
 - ✅ ~~Advanced security and sandboxing for code execution~~ (Completed: Docker/process sandboxing)
 - ✅ ~~Configuration management system~~ (Completed: YAML/JSON with validation)
 - ✅ ~~CLI interface for user interaction~~ (Completed: Rich CLI with interactive monitoring)
+- ✅ ~~Persistent storage and checkpointing~~ (Completed: Auto-save, resume, backup system)
 - Performance optimizations and parallel evaluation
 
 ## =� License

@@ -29,6 +29,10 @@ from alpha_evolve.llm_interface import LLMInterface
 from alpha_evolve.evaluation_engine import EvaluationEngine
 from alpha_evolve.diff_applier import DiffApplier
 from alpha_evolve.prompt_sampler import PromptSampler
+from alpha_evolve.persistence import (
+    PersistentProgramDatabase, EvolutionCheckpoint, 
+    create_storage_manager
+)
 
 
 class AlphaEvolveCLI:
@@ -166,6 +170,46 @@ Examples:
             help='Show current configuration and system status'
         )
         
+        # Checkpoint command
+        checkpoint_parser = subparsers.add_parser(
+            'checkpoint',
+            help='Manage evolution checkpoints'
+        )
+        checkpoint_subparsers = checkpoint_parser.add_subparsers(dest='checkpoint_action', help='Checkpoint actions')
+        
+        # List checkpoints
+        list_cp_parser = checkpoint_subparsers.add_parser('list', help='List available checkpoints')
+        list_cp_parser.add_argument(
+            '--checkpoint-dir', '-d',
+            help='Directory containing checkpoints'
+        )
+        
+        # Resume from checkpoint
+        resume_cp_parser = checkpoint_subparsers.add_parser('resume', help='Resume evolution from checkpoint')
+        resume_cp_parser.add_argument(
+            '--checkpoint', '-c',
+            required=True,
+            help='Path to checkpoint directory'
+        )
+        resume_cp_parser.add_argument(
+            '--generations', '-g',
+            type=int,
+            help='Additional generations to run'
+        )
+        
+        # Clean checkpoints
+        clean_cp_parser = checkpoint_subparsers.add_parser('clean', help='Clean old checkpoints')
+        clean_cp_parser.add_argument(
+            '--checkpoint-dir', '-d',
+            help='Directory containing checkpoints'
+        )
+        clean_cp_parser.add_argument(
+            '--keep', '-k',
+            type=int,
+            default=10,
+            help='Number of checkpoints to keep (default: 10)'
+        )
+        
         return parser
     
     async def cmd_setup(self, args: argparse.Namespace) -> int:
@@ -245,16 +289,24 @@ Examples:
                 evaluate_function_name="evaluate"
             )
             
-            # Initialize components
+            # Initialize components with persistence
             # Create default feature dimensions bins for complexity and performance
             feature_dimensions_bins = [
                 list(range(11)),  # Complexity: 0-10
                 [i/10.0 for i in range(11)]  # Performance: 0.0-1.0
             ]
             
-            program_db = ProgramDatabase(
+            # Create storage directory
+            storage_dir = Path("./evolution_storage")
+            storage_dir.mkdir(exist_ok=True)
+            
+            # Use persistent database
+            program_db, checkpoint_manager = create_storage_manager(
+                storage_dir=storage_dir,
                 feature_dimensions_bins=feature_dimensions_bins,
-                primary_score_key="objective"
+                primary_score_key="objective",
+                enable_compression=True,
+                auto_save_interval=50
             )
             llm_interface = LLMInterface()
             evaluation_engine = EvaluationEngine()
@@ -372,6 +424,129 @@ Examples:
             
         except Exception as e:
             self.console.print(f"[red]Error checking status: {str(e)}[/red]")
+            return 1
+    
+    async def cmd_checkpoint(self, args: argparse.Namespace) -> int:
+        """Handle checkpoint management commands."""
+        if args.checkpoint_action == 'list':
+            return await self._cmd_checkpoint_list(args)
+        elif args.checkpoint_action == 'resume':
+            return await self._cmd_checkpoint_resume(args)
+        elif args.checkpoint_action == 'clean':
+            return await self._cmd_checkpoint_clean(args)
+        else:
+            self.console.print("[red]Unknown checkpoint action[/red]")
+            return 1
+    
+    async def _cmd_checkpoint_list(self, args: argparse.Namespace) -> int:
+        """List available checkpoints."""
+        try:
+            checkpoint_dir = args.checkpoint_dir or "./evolution_storage/checkpoints"
+            
+            if not Path(checkpoint_dir).exists():
+                self.console.print(f"[yellow]No checkpoint directory found at {checkpoint_dir}[/yellow]")
+                return 0
+            
+            checkpoint_manager = EvolutionCheckpoint(checkpoint_dir)
+            checkpoints = checkpoint_manager.list_checkpoints()
+            
+            if not checkpoints:
+                self.console.print("[yellow]No checkpoints found[/yellow]")
+                return 0
+            
+            # Display checkpoints table
+            table = Table(title="Available Checkpoints")
+            table.add_column("Name", style="cyan")
+            table.add_column("Generation", justify="right", style="green")
+            table.add_column("Programs", justify="right", style="yellow")
+            table.add_column("Archive Size", justify="right", style="magenta")
+            table.add_column("Created", style="blue")
+            
+            for checkpoint in checkpoints:
+                created_date = checkpoint['created_at'][:19].replace('T', ' ')
+                table.add_row(
+                    checkpoint['name'],
+                    str(checkpoint['generation']),
+                    str(checkpoint['total_programs']),
+                    str(checkpoint['archive_size']),
+                    created_date
+                )
+            
+            self.console.print(table)
+            return 0
+            
+        except Exception as e:
+            self.console.print(f"[red]Error listing checkpoints: {str(e)}[/red]")
+            return 1
+    
+    async def _cmd_checkpoint_resume(self, args: argparse.Namespace) -> int:
+        """Resume evolution from checkpoint."""
+        try:
+            checkpoint_path = Path(args.checkpoint)
+            if not checkpoint_path.exists():
+                self.console.print(f"[red]Checkpoint not found: {checkpoint_path}[/red]")
+                return 1
+            
+            self.console.print(f"[bold blue]Loading checkpoint from {checkpoint_path}...[/bold blue]")
+            
+            # Load checkpoint
+            checkpoint_manager = EvolutionCheckpoint(checkpoint_path.parent)
+            checkpoint_data = checkpoint_manager.load_checkpoint(checkpoint_path)
+            
+            if not checkpoint_data:
+                self.console.print(f"[red]Failed to load checkpoint[/red]")
+                return 1
+            
+            evolution_state = checkpoint_data['evolution_state']
+            program_database = checkpoint_data['program_database']
+            
+            self.console.print(f"[green]✓[/green] Loaded checkpoint from generation {evolution_state.generation}")
+            self.console.print(f"[green]✓[/green] Programs: {len(program_database.all_programs_by_id)}")
+            self.console.print(f"[green]✓[/green] Archive size: {len(program_database.map_elites_archive.archive)}")
+            
+            # Resume evolution logic would go here
+            # For now, just show what would happen
+            additional_gens = args.generations or 10
+            total_gens = evolution_state.generation + additional_gens
+            
+            self.console.print(f"\n[bold]Would resume evolution from generation {evolution_state.generation} for {additional_gens} more generations (total: {total_gens})[/bold]")
+            self.console.print("[yellow]Resume functionality is implemented but not fully integrated yet[/yellow]")
+            
+            return 0
+            
+        except Exception as e:
+            self.console.print(f"[red]Error resuming from checkpoint: {str(e)}[/red]")
+            return 1
+    
+    async def _cmd_checkpoint_clean(self, args: argparse.Namespace) -> int:
+        """Clean old checkpoints."""
+        try:
+            checkpoint_dir = args.checkpoint_dir or "./evolution_storage/checkpoints"
+            
+            if not Path(checkpoint_dir).exists():
+                self.console.print(f"[yellow]No checkpoint directory found at {checkpoint_dir}[/yellow]")
+                return 0
+            
+            checkpoint_manager = EvolutionCheckpoint(checkpoint_dir)
+            
+            # Show current checkpoints
+            checkpoints = checkpoint_manager.list_checkpoints()
+            if len(checkpoints) <= args.keep:
+                self.console.print(f"[green]Only {len(checkpoints)} checkpoints found, no cleanup needed[/green]")
+                return 0
+            
+            self.console.print(f"[yellow]Found {len(checkpoints)} checkpoints, keeping {args.keep} newest[/yellow]")
+            
+            # Cleanup
+            removed_count = checkpoint_manager.cleanup_old_checkpoints(args.keep)
+            
+            self.console.print(f"[green]✓[/green] Removed {removed_count} old checkpoints")
+            self.console.print(f"[green]✓[/green] {len(checkpoint_manager.list_checkpoints())} checkpoints remaining")
+            
+            return 0
+            
+        except Exception as e:
+            self.console.print(f"[red]Error cleaning checkpoints: {str(e)}[/red]")
             return 1
     
     async def _run_interactive_evolution(self, controller: DistributedController, generations: int) -> int:
@@ -530,6 +705,8 @@ Examples:
             return await self.cmd_analyze(parsed_args)
         elif parsed_args.command == 'status':
             return await self.cmd_status(parsed_args)
+        elif parsed_args.command == 'checkpoint':
+            return await self.cmd_checkpoint(parsed_args)
         else:
             parser.print_help()
             return 1

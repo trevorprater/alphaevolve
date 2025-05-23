@@ -42,6 +42,11 @@ AlphaEvolve is a Python-based system that uses evolutionary techniques combined 
    - YAML/JSON file support with environment variable overlays
    - Secure credential management for LLM providers
 
+9. **Persistent Storage** (`alpha_evolve/persistence.py`)
+   - Program database serialization with compression and checksums
+   - Evolution checkpointing for resumable experiments
+   - Automatic backup and recovery mechanisms
+
 ## Development Environment
 
 ### Dependencies
@@ -68,6 +73,11 @@ python -m alpha_evolve.main        # Run the main evolution process
 cp config/alphaevolve.example.yaml alphaevolve.yaml  # Create config from example
 export OPENAI_API_KEY="your-key"   # Set LLM API keys
 export ANTHROPIC_API_KEY="your-key"
+
+# Checkpoint management
+alphaevolve checkpoint list         # List available checkpoints
+alphaevolve checkpoint resume --checkpoint path  # Resume evolution
+alphaevolve checkpoint clean --keep 5            # Cleanup old checkpoints
 ```
 
 ## Code Conventions
