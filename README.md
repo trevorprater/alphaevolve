@@ -47,16 +47,38 @@ def my_function(x, y):
 3. Run the evolution process:
 
 ```bash
+# Using the CLI (recommended)
+alphaevolve evolve --source your_file.py --generations 10 --interactive
+
+# Or using the Python module directly
 python -m alpha_evolve.main
+```
+
+### CLI Usage
+
+AlphaEvolve provides a comprehensive command-line interface:
+
+```bash
+# Initialize project configuration
+alphaevolve setup --template research
+
+# Run evolution with interactive monitoring
+alphaevolve evolve --source code.py --generations 10 --interactive
+
+# Analyze evolution results
+alphaevolve analyze --database results.json --format table
+
+# Check system status
+alphaevolve status
 ```
 
 ### Configuration
 
 AlphaEvolve uses a comprehensive configuration system with YAML/JSON files and environment variables:
 
-1. **Create configuration file:**
+1. **Initialize configuration:**
 ```bash
-cp config/alphaevolve.example.yaml alphaevolve.yaml
+alphaevolve setup --template basic|research|production
 ```
 
 2. **Set LLM API keys:**
@@ -124,6 +146,7 @@ See the [TODO.md](TODO.md) file for planned enhancements, including:
 - ✅ ~~Integration with real LLM APIs~~ (Completed: OpenAI, Anthropic support)
 - ✅ ~~Advanced security and sandboxing for code execution~~ (Completed: Docker/process sandboxing)
 - ✅ ~~Configuration management system~~ (Completed: YAML/JSON with validation)
+- ✅ ~~CLI interface for user interaction~~ (Completed: Rich CLI with interactive monitoring)
 - Performance optimizations and parallel evaluation
 
 ## =� License
