@@ -135,25 +135,19 @@ class DockerSandbox(Sandbox):
             execution_id = str(uuid.uuid4())
             with tempfile.TemporaryDirectory() as temp_dir:
                 code_file = Path(temp_dir) / "code.py"
-                inputs_file = Path(temp_dir) / "inputs.json"
-                output_file = Path(temp_dir) / "output.json"
                 
-                # Write code and inputs to files
+                # Write code to file
                 code_file.write_text(code)
-                if inputs:
-                    inputs_file.write_text(json.dumps(inputs))
-                else:
-                    inputs_file.write_text("{}")
                 
                 # Configure container
                 container_config = self._get_container_config(temp_dir)
                 
-                # Start container
+                # Start container with direct Python execution
                 container = await asyncio.get_event_loop().run_in_executor(
                     None, 
                     lambda: self.client.containers.run(
                         self.SANDBOX_IMAGE,
-                        command=f"python /sandbox/executor.py /sandbox/code.py /sandbox/inputs.json /sandbox/output.json",
+                        command=f"python /sandbox/code.py",
                         **container_config
                     )
                 )
@@ -196,14 +190,7 @@ class DockerSandbox(Sandbox):
                     # Docker logs format: stdout/stderr are interleaved
                     stdout = logs_str
                 
-                # Read output file if it exists
-                try:
-                    if output_file.exists():
-                        output_data = json.loads(output_file.read_text())
-                        stdout = output_data.get('stdout', stdout)
-                        stderr = output_data.get('stderr', stderr)
-                except (json.JSONDecodeError, FileNotFoundError):
-                    pass
+                # Simple direct execution - no output file parsing needed
                 
                 execution_time = time.time() - start_time
                 
