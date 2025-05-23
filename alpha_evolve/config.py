@@ -105,6 +105,24 @@ class DatabaseConfig(BaseModel):
     auto_save: bool = Field(True, description="Automatically save program database")
 
 
+class EvaluationConfig(BaseModel):
+    """Configuration for the evaluation engine."""
+    
+    # Fitness approximation settings
+    use_approximation: bool = Field(True, description="Enable fitness approximation")
+    approximation_confidence: float = Field(0.7, ge=0, le=1, description="Minimum confidence for approximation")
+    cache_size: int = Field(10000, gt=0, description="Size of evaluation cache")
+    k_neighbors: int = Field(5, gt=0, description="Number of neighbors for k-NN approximation")
+    
+    # Parallel evaluation settings
+    max_concurrent: int = Field(4, gt=0, description="Maximum concurrent evaluations")
+    evaluation_timeout: int = Field(30, gt=0, description="Timeout for single evaluation in seconds")
+    
+    # Cascade settings
+    enable_cascades: bool = Field(False, description="Enable evaluation cascades")
+    cascade_early_exit: bool = Field(True, description="Allow early exit in cascades")
+
+
 class EvolutionConfig(BaseModel):
     """Configuration for the evolution process."""
     
@@ -189,6 +207,7 @@ class AlphaEvolveConfig(BaseSettings):
     llm: LLMConfig = Field(default_factory=LLMConfig)
     sandbox: SandboxConfig = Field(default_factory=SandboxConfig)
     database: DatabaseConfig = Field(default_factory=DatabaseConfig)
+    evaluation: EvaluationConfig = Field(default_factory=EvaluationConfig)
     evolution: EvolutionConfig = Field(default_factory=EvolutionConfig)
     logging: LoggingConfig = Field(default_factory=LoggingConfig)
     security: SecurityConfig = Field(default_factory=SecurityConfig)

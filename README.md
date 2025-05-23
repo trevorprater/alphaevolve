@@ -14,6 +14,7 @@ AlphaEvolve identifies code blocks marked for evolution in your program, generat
 - 🔒 **Secure Sandboxing** - Safe code execution with Docker/process isolation
 - 💾 **Persistent Storage** - Checkpoint and resume evolution experiments
 - 🎯 **Diff-Based Modifications** - Uses diffs to apply precise, targeted code changes
+- ⚡ **Production-Grade Evaluation** - Advanced evaluation engine with cascades, approximation, and parallel processing
 
 ## 📦 Installation
 
@@ -113,6 +114,7 @@ export GOOGLE_CLOUD_LOCATION="us-central1"
 - `llm`: LLM provider settings (default_provider, API keys, rate limits)
   - Supports OpenAI (o4, o3, o1), Anthropic (Claude 4 with thinking), Google Gemini/Vertex AI
 - `sandbox`: Code execution security (Docker/process isolation, resource limits)
+- `evaluation`: Advanced evaluation settings (cascades, approximation, parallel processing)
 - `evolution`: Evolutionary parameters (generations, population size, mutation rates)
 - `database`: MAP-Elites archive settings (feature dimensions, bins)
 - `persistence`: Checkpoint intervals and auto-save settings
@@ -161,6 +163,7 @@ AlphaEvolve supports the latest LLM models for code generation:
 5. **Evaluation Engine** (`evaluation_engine.py`)
    - Evaluates modified code using user-provided functions
    - Supports secure sandboxing with Docker and process isolation
+   - Advanced features: evaluation cascades, fitness approximation, parallel evaluation
    - Provides scores for the evolutionary process
 
 6. **Distributed Controller** (`controller.py`)
@@ -169,7 +172,7 @@ AlphaEvolve supports the latest LLM models for code generation:
 
 ## 🧪 Testing
 
-Run the test suite with pytest:
+AlphaEvolve includes a comprehensive test suite with 232 tests covering all components:
 
 ```bash
 # Run all tests
@@ -183,7 +186,10 @@ pytest -xvs tests/
 
 # Test with LLM SDKs installed
 uv pip install openai anthropic google-genai
-pytest -xvs tests/test_llm_interface.py
+pytest -xvs tests/test_llm_interface.py tests/test_sdk_integration.py
+
+# Test advanced evaluation engine features
+pytest -xvs tests/test_evaluation_engine_advanced.py
 ```
 
 ## 📚 Documentation
@@ -211,7 +217,8 @@ See the [TODO.md](TODO.md) file for planned enhancements, including:
 - ✅ ~~Configuration management system~~ (Completed: YAML/JSON with validation)
 - ✅ ~~CLI interface for user interaction~~ (Completed: Rich CLI with interactive monitoring)
 - ✅ ~~Persistent storage and checkpointing~~ (Completed: Auto-save, resume, backup system)
-- Performance optimizations and parallel evaluation
+- ✅ ~~Production-grade evaluation engine~~ (Completed: Cascades, approximation, parallel evaluation)
+- Enhanced MAP-Elites variations and distributed evolution
 
 ## 📄 License
 

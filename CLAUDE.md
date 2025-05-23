@@ -144,3 +144,4 @@ mkdocs build                       # Build documentation site
 - use uv instead of pip for package management
 - prioritize LLM providers: Anthropic, OpenAI, Vertex AI (Gemini), Gemini API
 - Ensure you view the latest docs related to LLM providers' python packages when working on LLM provider integrations. Use Tavily to find the docs and then retrieve the docs' web content to ensure our changes match the latest features / standards. For example, the anthropic client supports a 'thinking' parameter. You can also use your github mcp to get their code from github. In other words, we want to support the features that make these models unique and most effective.
+- update docs/examples/evaluation-engine-features.md whenever you update the evaluation engine or its features
