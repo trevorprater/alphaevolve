@@ -54,12 +54,14 @@ AlphaEvolve is a Python-based system that uses evolutionary techniques combined 
 - pytest 8.3.5+
 - pydantic-settings 2.11+ (for configuration management)
 - aiohttp 3.8+ (for async LLM API calls)
+- mkdocs 1.6.1+ (for documentation)
+- mkdocs-material 9.6+ (for documentation theme)
 
 ### Common Commands
 
 ```bash
-# Install development dependencies 
-python -m pip install -e ".[dev]"  # Install in development mode
+# Install development dependencies using uv
+uv pip install -e ".[dev]"         # Install in development mode
 
 # Running tests
 pytest                             # Run all tests
@@ -73,11 +75,23 @@ python -m alpha_evolve.main        # Run the main evolution process
 cp config/alphaevolve.example.yaml alphaevolve.yaml  # Create config from example
 export OPENAI_API_KEY="your-key"   # Set LLM API keys
 export ANTHROPIC_API_KEY="your-key"
+export GOOGLE_CLOUD_PROJECT="your-project"  # For Vertex AI
+export GOOGLE_API_KEY="your-key"   # For Gemini API
+
+# CLI Commands
+alphaevolve setup my_project       # Initialize new evolution project
+alphaevolve evolve --config config.yaml  # Run evolution
+alphaevolve analyze --archive results.json  # Analyze results
+alphaevolve status                 # Check evolution status
 
 # Checkpoint management
 alphaevolve checkpoint list         # List available checkpoints
 alphaevolve checkpoint resume --checkpoint path  # Resume evolution
 alphaevolve checkpoint clean --keep 5            # Cleanup old checkpoints
+
+# Documentation
+mkdocs serve                       # Serve documentation locally
+mkdocs build                       # Build documentation site
 ```
 
 ## Code Conventions
@@ -88,6 +102,33 @@ alphaevolve checkpoint clean --keep 5            # Cleanup old checkpoints
 - Implement proper error handling with custom exceptions when needed
 - Use async/await for potentially long-running operations (especially LLM interactions)
 
+## Project Status
+
+### Completed Features (as of Task 15)
+- Core evolutionary algorithm with MAP-Elites
+- Task definition and code parsing
+- Program database with archive management
+- Prompt sampling system
+- Basic LLM interface (mock and OpenAI)
+- Diff application system
+- Evaluation engine with sandboxing
+- Distributed controller
+- Comprehensive configuration management
+- CLI interface with rich terminal UI
+- Persistent storage and checkpointing
+- MkDocs-based documentation system
+
+### Upcoming Tasks
+- Task 16: Real LLM Integration (Anthropic, OpenAI, Vertex AI, Gemini)
+- Task 17: Production-grade evaluation engine with robust sandboxing
+- Task 18: Advanced MAP-Elites variations
+- Task 19: Island model implementation
+- Task 20-21: Complete documentation and examples
+- Task 22-23: LLM feedback and meta-prompts
+- Task 24-25: Developer docs and human-in-the-loop
+
 ## Workflow Memories
 
 - git commit every atomic completed taskmaster task
+- use uv instead of pip for package management
+- prioritize LLM providers: Anthropic, OpenAI, Vertex AI (Gemini), Gemini API

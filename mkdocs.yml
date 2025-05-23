@@ -88,12 +88,16 @@ nav:
     - Monitoring Progress: user-guide/monitoring.md
     - Managing Checkpoints: user-guide/checkpoints.md
     - Configuration Reference: user-guide/configuration-reference.md
+    - Troubleshooting: user-guide/troubleshooting.md
   - Examples:
+    - Basic Optimization: examples/basic-optimization.md
     - Algorithm Optimization: examples/algorithm-optimization.md
     - Performance Tuning: examples/performance-tuning.md
     - Novel Algorithm Discovery: examples/novel-discovery.md
     - Research Applications: examples/research-applications.md
+    - Analysis Tutorial: examples/analysis-tutorial.md
   - API Reference:
+    - Core Modules: api-reference/core-modules.md
     - Task Utils: api-reference/task-utils.md
     - Program Database: api-reference/program-database.md
     - LLM Interface: api-reference/llm-interface.md
@@ -102,6 +106,8 @@ nav:
     - Persistence: api-reference/persistence.md
     - Controller: api-reference/controller.md
     - CLI: api-reference/cli.md
+  - Advanced Topics:
+    - Distributed Evolution: advanced/distributed-evolution.md
   - Developer Guide:
     - Architecture: developer-guide/architecture.md
     - Contributing: developer-guide/contributing.md
