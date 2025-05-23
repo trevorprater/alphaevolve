@@ -1,0 +1,166 @@
+# Advanced AlphaEvolve Configuration with Multiple LLM Providers
+# This configuration demonstrates support for all available LLM providers
+
+# LLM Configuration
+llm:
+  # Default provider (priority order: anthropic, openai, vertex_ai, gemini)
+  default_provider: anthropic
+  fallback_provider: openai
+  
+  providers:
+    # Anthropic Configuration (Priority 1)
+    anthropic:
+      api_key: ${ANTHROPIC_API_KEY}  # Set via environment variable
+      model: claude-3-sonnet-20240229
+      temperature: 0.2
+      max_tokens: 4000
+      timeout_seconds: 60
+      rate_limit_rpm: 60
+      # Advanced Anthropic features
+      # use_thinking: true  # Enable for supported models
+      # thinking_budget: 8192
+    
+    # OpenAI Configuration (Priority 2)
+    openai:
+      api_key: ${OPENAI_API_KEY}  # Set via environment variable
+      model: gpt-4-turbo-preview
+      temperature: 0.2
+      max_tokens: 4000
+      timeout_seconds: 60
+      rate_limit_rpm: 60
+      # Optional: Custom endpoint for Azure OpenAI or compatible APIs
+      # base_url: https://your-resource.openai.azure.com/
+    
+    # Google Vertex AI Configuration (Priority 3)
+    vertex_ai:
+      api_key: ""  # Uses Application Default Credentials
+      model: gemini-1.5-pro
+      temperature: 0.2
+      max_tokens: 8000
+      timeout_seconds: 90
+      rate_limit_rpm: 60
+      # Additional Vertex AI settings
+      # project_id: ${GOOGLE_CLOUD_PROJECT}  # Can be set via env or here
+      # location: us-central1
+    
+    # Google Gemini API Configuration (Priority 4)
+    gemini:
+      api_key: ${GOOGLE_API_KEY}  # Set via environment variable
+      model: gemini-pro
+      temperature: 0.2
+      max_tokens: 8000
+      timeout_seconds: 60
+      rate_limit_rpm: 60
+    
+    # Mock Provider (Always available for testing)
+    mock:
+      api_key: mock
+      model: mock-model
+      temperature: 0.5
+      max_tokens: 1000
+      # response_type: flash  # or 'pro' for different mock responses
+
+# Evolution Algorithm Configuration
+evolution:
+  # Population settings
+  population_size: 50
+  max_generations: 100
+  num_islands: 1
+  
+  # Selection and mutation
+  mutation_rate: 0.8
+  crossover_rate: 0.2
+  elitism_size: 5
+  tournament_size: 3
+  
+  # Diversity maintenance
+  novelty_threshold: 0.1
+  behavioral_diversity_weight: 0.3
+  
+  # Early stopping
+  early_stopping_patience: 20
+  min_fitness_improvement: 0.001
+
+# Sandboxing Configuration
+sandbox:
+  enabled: true
+  type: docker  # 'docker' or 'process'
+  
+  # Resource limits
+  cpu_limit: 1.0
+  memory_limit: 512m
+  timeout_seconds: 30
+  max_output_size: 1048576  # 1MB
+  network_disabled: true
+  
+  # Docker settings
+  docker_image: alphaevolve-sandbox:latest
+  docker_pull_policy: if_not_present
+
+# Database Configuration
+database:
+  type: memory  # 'memory', 'sqlite', or 'postgresql'
+  # connection_string: sqlite:///alphaevolve.db
+  
+  # MAP-Elites settings
+  feature_dimensions:
+    - complexity
+    - performance
+    - readability
+  feature_bins: 20
+  
+  # Performance
+  batch_size: 100
+  connection_pool_size: 5
+
+# Persistence Configuration
+persistence:
+  # Checkpoint settings
+  checkpoint_enabled: true
+  checkpoint_interval: 10  # Every 10 generations
+  checkpoint_dir: ./checkpoints
+  max_checkpoints: 20
+  
+  # Compression
+  compression_enabled: true
+  compression_level: 6
+  
+  # Auto-save
+  autosave_enabled: true
+  autosave_interval: 300  # Every 5 minutes
+
+# Monitoring Configuration
+monitoring:
+  # Terminal monitoring
+  terminal_enabled: true
+  update_interval: 5
+  show_progress_bar: true
+  
+  # Logging
+  log_level: INFO
+  log_file: alphaevolve.log
+  log_format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  
+  # Metrics collection
+  collect_llm_metrics: true
+  collect_evolution_metrics: true
+  metrics_export_format: json
+  metrics_export_path: ./metrics
+
+# Advanced Features
+advanced:
+  # LLM Ensemble (future feature)
+  llm_ensemble_enabled: false
+  ensemble_voting_strategy: weighted  # 'weighted', 'majority', 'best'
+  
+  # Meta-prompt evolution (future feature)
+  meta_prompt_evolution: false
+  meta_prompt_population_size: 20
+  
+  # Code analysis
+  ast_analysis_enabled: true
+  complexity_metrics_enabled: true
+  
+  # Experimental features
+  adaptive_mutation_rate: false
+  behavioral_novelty_search: false

@@ -47,9 +47,10 @@ class LLMConfig(BaseModel):
         if not v:
             return v
         
+        valid_providers = ['openai', 'anthropic', 'vertex_ai', 'gemini', 'mock']
         for name, config in v.items():
-            if name not in ['openai', 'anthropic', 'mock']:
-                raise ValueError(f"Unknown provider: {name}")
+            if name not in valid_providers:
+                raise ValueError(f"Unknown provider: {name}. Valid providers: {valid_providers}")
         
         return v
     
