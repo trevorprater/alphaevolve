@@ -1,4 +1,4 @@
-# Real-World Results: Beating Almgren–Chriss
+m# Real-World Results: Beating Almgren–Chriss
 
 This directory contains experiments where AlphaEvolve strategies are directly compared against the canonical Almgren–Chriss optimal execution model.  
 The objective is to evaluate performance under conditions that resemble real market microstructure, rather than on simplified or synthetic benchmarks.
@@ -69,6 +69,8 @@ python market-simulator.py
 
 Experiment settings are controlled through almgren-chriss-config.yaml.
 ```
+
+---
 
 Limitations & External Validity
 	•	Simulator fidelity. The evaluator uses simplified microstructure: Gaussian shocks, square-root impact, half-spread costs, and fixed liquidity buckets. It does not model queue position, order type selection, venue routing, or latency/partial fills.
