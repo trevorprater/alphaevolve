@@ -70,9 +70,8 @@ python market-simulator.py
 Experiment settings are controlled through almgren-chriss-config.yaml.
 ```
 
----
 
-Limitations & External Validity
+### Limitations & External Validity
 	•	Simulator fidelity. The evaluator uses simplified microstructure: Gaussian shocks, square-root impact, half-spread costs, and fixed liquidity buckets. It does not model queue position, order type selection, venue routing, or latency/partial fills.
 	•	Scenario design. Results aggregate over a finite set of hand-specified regimes. Any fixed menu risks rewarding strategies that “learn the exam.”
 	•	Parameter stationarity. Volatility, spread, and toxicity processes are stationary within scenarios; real regimes drift and break.
@@ -83,7 +82,7 @@ We report a 58% reduction in implementation shortfall vs. the Almgren–Chriss b
 
 ⸻
 
-Generalization Tests
+### Generalization Tests
 
 To guard against overfitting:
 	•	Walk-forward evaluation. Train/evolve on a set of simulated parameter ranges; evaluate on held-out draws and on out-of-range shifts.
