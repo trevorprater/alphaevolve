@@ -1,4 +1,4 @@
-m# Real-World Results: Beating Almgren–Chriss
+# Real-World Results: Beating Almgren–Chriss
 
 This directory contains experiments where AlphaEvolve strategies are directly compared against the canonical Almgren–Chriss optimal execution model.  
 The objective is to evaluate performance under conditions that resemble real market microstructure, rather than on simplified or synthetic benchmarks.
