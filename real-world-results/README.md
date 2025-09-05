@@ -70,13 +70,13 @@ python market-simulator.py
 Experiment settings are controlled through almgren-chriss-config.yaml.
 ```
 
-
 ### Limitations & External Validity
-	•	Simulator fidelity. The evaluator uses simplified microstructure: Gaussian shocks, square-root impact, half-spread costs, and fixed liquidity buckets. It does not model queue position, order type selection, venue routing, or latency/partial fills.
-	•	Scenario design. Results aggregate over a finite set of hand-specified regimes. Any fixed menu risks rewarding strategies that “learn the exam.”
-	•	Parameter stationarity. Volatility, spread, and toxicity processes are stationary within scenarios; real regimes drift and break.
-	•	Execution model. Trades clear at an impacted price in one step; no explicit limit-order book, no hidden liquidity, no cancel/replace dynamics.
-	•	Trial count. Only a small number of random seeds per scenario; variance may be underestimated.
+
+- Simulator fidelity. The evaluator uses simplified microstructure: Gaussian shocks, square-root impact, half-spread costs, and fixed liquidity buckets. It does not model queue position, order type selection, venue routing, or latency/partial fills.
+- Scenario design. Results aggregate over a finite set of hand-specified regimes. Any fixed menu risks rewarding strategies that “learn the exam.”
+- Parameter stationarity. Volatility, spread, and toxicity processes are stationary within scenarios; real regimes drift and break.
+- Execution model. Trades clear at an impacted price in one step; no explicit limit-order book, no hidden liquidity, no cancel/replace dynamics.
+- Trial count. Only a small number of random seeds per scenario; variance may be underestimated.
 
 We report a 58% reduction in implementation shortfall vs. the Almgren–Chriss baseline on this evaluator. This is meaningful, but we treat it as evidence of potential, not proof of live PnL transferability.
 
@@ -85,12 +85,13 @@ We report a 58% reduction in implementation shortfall vs. the Almgren–Chriss b
 ### Generalization Tests
 
 To guard against overfitting:
-	•	Walk-forward evaluation. Train/evolve on a set of simulated parameter ranges; evaluate on held-out draws and on out-of-range shifts.
-	•	Unseen-scenario stress. Generate scenarios not present during evolution (jump diffusion, asymmetric impact, regime-switching).
-	•	Ablation checks. Remove momentum/spread signals; confirm performance drops. Shuffle labels to check for leakage.
-	•	Seed stability. Run many seeds and hyperparameter sweeps to verify robustness.
-	•	Historical replay (recommended next). Replace the simulator with time-aligned market data to validate in realistic conditions.
-	•	Shadow/live A/B. Paper-trade or route a slice of flow in production under risk controls.
+
+  - Walk-forward evaluation. Train/evolve on a set of simulated parameter ranges; evaluate on held-out draws and on out-of-range shifts.
+  - Unseen-scenario stress. Generate scenarios not present during evolution (jump diffusion, asymmetric impact, regime-switching).
+  - Ablation checks. Remove momentum/spread signals; confirm performance drops. Shuffle labels to check for leakage.
+  - Seed stability. Run many seeds and hyperparameter sweeps to verify robustness.
+  - Historical replay (recommended next). Replace the simulator with time-aligned market data to validate in realistic conditions.
+  - Shadow/live A/B. Paper-trade or route a slice of flow in production under risk controls.
 
 ⸻
 
