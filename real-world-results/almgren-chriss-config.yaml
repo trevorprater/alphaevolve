@@ -1,0 +1,249 @@
+# AlphaEvolve Configuration: Beat Almgren-Chriss Challenge
+project_name: "Beat Almgren-Chriss Optimal Execution"
+version: "2.0.0"
+description: "Aggressive evolution to discover order execution strategies that outperform Almgren-Chriss"
+
+# Task Definition
+task:
+  initial_code_path: "./optimal_order_execution_seeded.py"
+  evaluate_function_path: "./enhanced_order_execution_evaluator.py"
+  evaluate_function_name: "evaluate"
+
+# LLM Configuration - Maximum creativity and exploration
+llm:
+  default_provider: gemini
+  providers:
+    gemini:
+      api_key: ${GOOGLE_API_KEY}
+      model: gemini-2.5-flash-preview-05-20
+      temperature: 0.9 # High creativity but not maximum
+      max_tokens: 2000 # Reasonable limit to avoid MAX_TOKENS errors
+      rate_limit_rpm: 1000 # Gemini supports very high rate limits
+      rate_limit_tpm: 1000000 # 1M output tokens per minute
+
+  # Advanced prompting to beat Almgren-Chriss
+  system_prompts:
+    code_generation: |
+      You are a quantitative finance genius tasked with discovering order execution algorithms that BEAT the Almgren-Chriss model.
+
+      Current best: 87.28 basis points (Almgren-Chriss)
+      Your target: < 85 basis points
+
+      Key insights to exploit:
+
+      1. MICROSTRUCTURE ALPHA:
+         - Order flow imbalance predicts short-term price moves
+         - Spread dynamics indicate liquidity conditions
+         - Trade size clustering reveals institutional activity
+         - Time-of-day patterns (opening/closing auctions)
+         - Cross-asset signals from correlated securities
+
+      2. ADAPTIVE IMPACT MODELS:
+         - Market impact is NOT linear - it's concave for small orders, convex for large
+         - Impact depends on market state (volatility, liquidity, momentum)
+         - Buy impact ≠ Sell impact (asymmetry)
+         - Temporary vs permanent impact varies with market conditions
+
+      3. REGIME DETECTION:
+         - Normal markets → aggressive execution
+         - Stressed markets → defensive execution  
+         - Momentum markets → ride the trend
+         - Mean-reverting markets → contrarian timing
+         - Detect regime switches EARLY
+
+      4. GAME THEORY:
+         - Other algorithms are watching your execution
+         - Randomization prevents detection
+         - Deceptive patterns throw off predators
+         - Learn from adverse selection signals
+
+      5. MACHINE LEARNING OPPORTUNITIES:
+         - Online learning of market impact
+         - Bayesian updates on volatility/liquidity
+         - Feature engineering from microstructure
+         - Ensemble methods for robustness
+         - Reinforcement learning concepts
+
+      6. ADVANCED TECHNIQUES:
+         - Hierarchical strategies (meta-strategy selects sub-strategies)
+         - Multi-scale execution (different rules for different time horizons)
+         - Adversarial robustness (works even with front-running)
+         - Information-theoretic order sizing
+         - Stochastic control with model uncertainty
+         - Jump diffusion models for fat tails
+         - Copula models for extreme events
+
+      WINNING STRATEGIES MIGHT:
+      - Start with Almgren-Chriss then ADAPT based on real-time signals
+      - Use completely different approach (RL, game theory, ML)
+      - Exploit specific market anomalies others miss
+      - Combine multiple innovative techniques
+      - Be elegant and interpretable, not just complex
+
+      EVALUATION SCENARIOS INCLUDE:
+      - Normal markets (where AC works well)
+      - Momentum markets (trending prices)
+      - Mean-reverting markets
+      - Toxic flow (adverse selection)
+      - Flash crashes (extreme volatility)
+      - Predatory HFTs (adversarial)
+      - Closing auctions (liquidity concentration)
+
+      BE CREATIVE! Think outside the box. Question assumptions. 
+      The market has changed since 2000 - find what Almgren-Chriss missed!
+
+# Evolution Configuration - Aggressive exploration
+evolution:
+  # max_generations: 100
+  # population_size: 50  # Large population for diversity
+  max_generations: 5
+  population_size: 50 # Large population for diversity
+  minimize: true
+  archive_type: "adaptive"
+
+  # Elite selection - only the very best survive
+  elite_ratio: 0.05 # Only top 5%
+
+  # High mutation for exploration
+  mutation_rate: 0.3
+  crossover_rate: 0.7
+
+  # Advanced MAP-Elites with maximum diversity
+  map_elites:
+    n_bins: 100 # Fine-grained feature space
+    adaptive_threshold: 50 # Aggressive bin splitting
+
+  # Island model for parallel exploration of different ideas
+  island_model:
+    enabled: true
+    num_islands: 10 # Many islands for different strategy families
+    migration_interval: 5 # Frequent migration
+    migration_size: 5 # Large migration for idea spreading
+    topology: "fully_connected" # Maximum connectivity
+    migration_strategy: "diverse" # Prioritize diversity
+
+    # Each island explores different approach
+    island_specializations:
+      - "microstructure" # Focus on spread, flow, tick data
+      - "machine_learning" # Online learning, predictions
+      - "game_theory" # Adversarial, randomized
+      - "regime_detection" # Market state classification
+      - "hierarchical" # Meta-strategies
+      - "stochastic_control" # Mathematical optimization
+      - "robust" # Worst-case optimization
+      - "adaptive" # Real-time parameter updates
+      - "ensemble" # Combine multiple approaches
+      - "innovative" # Completely new ideas
+
+# Controller Configuration
+controller:
+  batch_size_llm_calls: 50 # Much larger batches with Gemini's high limits
+  max_concurrent_llm_calls: 50 # Maximum parallel calls for Gemini
+  num_parents: 5 # More parents for diversity
+  num_inspirations: 10 # Many inspirations
+  allow_single_parent: false # Force crossover
+
+  # Advanced meta-prompts for breakthrough thinking
+  enable_meta_prompts: true
+  meta_prompt_types:
+    - "microstructure_discovery"
+    - "regime_detection"
+    - "game_theoretic"
+    - "machine_learning_innovation"
+    - "mathematical_breakthrough"
+    - "contrarian_thinking"
+    - "ensemble_methods"
+    - "robustness_focus"
+    - "cross_asset_signals"
+    - "behavioral_finance"
+
+  # Rich context for LLM
+  task_context: |
+    CRITICAL MISSION: Beat Almgren-Chriss (87.28 bps) with <85 bps
+
+    The evaluator tests 8 scenarios including:
+    1. Normal markets (AC baseline)
+    2. Large orders (size stress)
+    3. Momentum markets (trending)
+    4. Mean-reverting markets
+    5. Toxic flow (adverse selection)
+    6. Flash crashes (extreme vol)
+    7. Closing auctions (concentrated liquidity)
+    8. Predatory HFTs (adversarial)
+
+    Strategies are scored on:
+    - Average implementation shortfall (primary)
+    - Risk/consistency (variance penalty)
+    - Robustness (performance in adverse scenarios)
+    - Special bonus for beating 87.28 bps
+
+    Market simulator provides:
+    - Price, spread, volatility
+    - Bid/ask prices
+    - Recent momentum
+    - Order flow imbalance
+    - Time of day
+    - Total volume
+
+    THINK DIFFERENTLY! AC is 24 years old - markets have evolved!
+
+# Evaluation Configuration
+evaluation:
+  timeout: 60.0 # More time for complex strategies
+  parallel_evaluations: 50 # Match LLM concurrency
+  cache_evaluations: true
+  cache_size: 50000 # Large cache
+
+  # LLM feedback on promising strategies
+  llm_feedback:
+    enabled: true
+    provider: gemini
+    model: gemini-2.5-flash-preview-05-20
+    sample_rate: 0.1 # 10% of programs
+    min_score_percentile: 80 # Top 20%
+    focus_areas:
+      - "innovation_level"
+      - "theoretical_soundness"
+      - "practical_robustness"
+      - "competitive_advantage"
+
+# Diversity Metrics - Maximum exploration
+diversity:
+  metrics:
+    - semantic
+    - behavioral
+    - structural
+    - textual
+  composite_weights:
+    semantic: 0.2
+    behavioral: 0.6 # Most important - different execution patterns
+    structural: 0.1
+    textual: 0.1
+
+  # Novelty search
+  enable_novelty_search: true
+  novelty_threshold: 0.7
+  archive_selection_method: "tournament_diverse" # Diversity-focused selection
+
+# Persistence Configuration
+persistence:
+  save_every_n_generations: 1
+  checkpoint_dir: "evolution_storage/checkpoints/beat_almgren_chriss"
+  enable_compression: true
+  keep_last_n_checkpoints: 20000
+
+# Sandbox Configuration - DISABLED
+sandbox:
+  enabled: false
+  type: "process"
+
+# Monitoring
+monitoring:
+  enabled: true
+  update_interval: 30
+  metrics:
+    - evolution_progress
+    - best_fitness
+    - diversity_score
+    - strategies_beating_baseline
+    - scenario_performance
