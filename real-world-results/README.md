@@ -95,7 +95,7 @@ To guard against overfitting:
 
 ⸻
 
-Significance
+## Significance
 
 These results demonstrate that AlphaEvolve improves upon a widely accepted academic baseline under conditions that reflect real-world market structure.
 The combination of adaptive behavior, robustness under stress, and a 58% reduction in shortfall establishes AlphaEvolve as a material step forward in optimal execution research and practice.
