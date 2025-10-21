@@ -1,9 +1,37 @@
 [project]
 name = "alphaevolve"
 version = "0.1.0"
-description = "Add your description here"
+description = "An evolutionary code optimization system that combines evolutionary algorithms with Large Language Models"
 readme = "README.md"
 requires-python = ">=3.12"
+license = {text = "MIT"}
+authors = [
+    {name = "AlphaEvolve Contributors"}
+]
+maintainers = [
+    {name = "AlphaEvolve Contributors"}
+]
+keywords = [
+    "evolutionary-algorithms",
+    "code-optimization",
+    "llm",
+    "map-elites",
+    "genetic-programming",
+    "ai",
+    "machine-learning"
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Software Development :: Code Generators",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
 dependencies = [
     "pytest>=8.3.5",
     "pytest-asyncio>=0.26.0",
@@ -15,8 +43,36 @@ dependencies = [
     "rich>=13.0.0",
 ]
 
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3.5",
+    "pytest-asyncio>=0.26.0",
+    "pytest-cov>=4.1.0",
+    "mkdocs>=1.6.1",
+    "mkdocs-material>=9.6.0",
+]
+llm = [
+    "openai>=1.0.0",
+    "anthropic>=0.34.0",
+    "google-genai>=0.1.0",
+]
+all = [
+    "alphaevolve[dev,llm]",
+]
+
+[project.urls]
+Homepage = "https://github.com/your-username/alphaevolve"
+Documentation = "https://github.com/your-username/alphaevolve/tree/main/docs"
+Repository = "https://github.com/your-username/alphaevolve"
+Issues = "https://github.com/your-username/alphaevolve/issues"
+Changelog = "https://github.com/your-username/alphaevolve/blob/main/CHANGELOG.md"
+
 [project.scripts]
 alphaevolve = "alpha_evolve.cli:cli_main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
 [tool.pytest.ini_options]
 asyncio_mode = "strict"
