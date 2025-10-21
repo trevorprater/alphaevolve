@@ -1,0 +1,51 @@
+# Ruff configuration for AlphaEvolve
+
+# Enable pycodestyle (E, W), Pyflakes (F), and isort (I) rules
+select = ["E", "F", "W", "I"]
+
+# Ignore specific rules
+ignore = [
+    "E501",  # Line too long (handled by formatter)
+    "E402",  # Module level import not at top of file
+    "F401",  # Imported but unused (may be intentional for __init__.py)
+    "F841",  # Local variable assigned but never used
+    "W191",  # Indentation contains tabs
+]
+
+# Exclude generated files and vendored code
+exclude = [
+    ".git",
+    ".venv",
+    "__pycache__",
+    "build",
+    "dist",
+    "*.egg-info",
+    ".pytest_cache",
+    ".mypy_cache",
+    "site",
+]
+
+# Line length
+line-length = 120
+
+# Target Python version
+target-version = "py312"
+
+# Allow unused variables when underscore-prefixed
+dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
+
+[format]
+# Use double quotes for strings
+quote-style = "double"
+
+# Indent with spaces
+indent-style = "space"
+
+# Respect magic trailing commas
+skip-magic-trailing-comma = false
+
+# Format docstrings
+docstring-code-format = true
+
+[lint.isort]
+known-first-party = ["alpha_evolve"]
