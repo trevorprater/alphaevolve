@@ -114,7 +114,6 @@ export GOOGLE_CLOUD_LOCATION="us-central1"
 
 3. **Key configuration sections:**
 - `llm`: LLM provider settings (default_provider, API keys, rate limits)
-  - Supports OpenAI (o4, o3, o1), Anthropic (Claude 4 with thinking), Google Gemini/Vertex AI
 - `sandbox`: Code execution security (Docker/process isolation, resource limits)
 - `evaluation`: Advanced evaluation settings (cascades, approximation, parallel processing)
 - `evolution`: Evolutionary parameters (generations, population size, mutation rates)
@@ -210,10 +209,6 @@ pytest -xvs tests/test_feature_extraction.py tests/test_feature_configuration.py
 ## Documentation
 
 Full documentation is available at `docs/` and can be viewed with:
-
-```bash
-mkdocs serve
-```
 
 Key documentation:
 - [Getting Started Guide](docs/getting-started/quickstart.md)
