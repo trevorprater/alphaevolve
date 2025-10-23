@@ -7,21 +7,21 @@ A weekend ripoff of Google's paper.
 
 AlphaEvolve is a Python-based system that combines evolutionary algorithms with Large Language Models (LLMs) to optimize and evolve code. It uses a MAP-Elites evolutionary algorithm to maintain a diverse population of code variants while optimizing for performance and other features.
 
-## 🔬 Overview
+## Overview
 
 AlphaEvolve identifies code blocks marked for evolution in your program, generates modifications using LLMs, evaluates their performance, and iteratively improves the code through a structured evolutionary process. The system maintains diversity by using a MAP-Elites archive that organizes program variants based on different feature dimensions.
 
 ### Key Features
 
-- 🧬 **Evolutionary Code Optimization** - Automatically evolves and optimizes code blocks
-- 🤖 **Modern LLM Integration** - Supports latest models from OpenAI, Anthropic, and Google
-- 📊 **MAP-Elites Archive** - Maintains diversity in the solution population
-- 🔒 **Secure Sandboxing** - Safe code execution with Docker/process isolation
-- 💾 **Persistent Storage** - Checkpoint and resume evolution experiments
-- 🎯 **Diff-Based Modifications** - Uses diffs to apply precise, targeted code changes
-- ⚡ **Production-Grade Evaluation** - Advanced evaluation engine with cascades, approximation, and parallel processing
+- **Evolutionary Code Optimization** - Automatically evolves and optimizes code blocks
+- **Modern LLM Integration** - Supports latest models from OpenAI, Anthropic, and Google
+- **MAP-Elites Archive** - Maintains diversity in the solution population
+- **Secure Sandboxing** - Safe code execution with Docker/process isolation
+- **Persistent Storage** - Checkpoint and resume evolution experiments
+- **Diff-Based Modifications** - Uses diffs to apply precise, targeted code changes
+- **Production-Grade Evaluation** - Advanced evaluation engine with cascades, approximation, and parallel processing
 
-## 📦 Installation
+## Installation
 
 AlphaEvolve requires Python 3.12 or newer.
 
@@ -40,7 +40,7 @@ python -m pip install -e ".[dev]"
 uv pip install openai anthropic google-genai
 ```
 
-## 🚀 Usage
+## Usage
 
 ### Basic Usage
 
@@ -126,7 +126,7 @@ export GOOGLE_CLOUD_LOCATION="us-central1"
 
 See `config/alphaevolve.example.yaml` for all available options.
 
-## 🧩 Supported LLM Providers
+## Supported LLM Providers
 
 AlphaEvolve supports the latest LLM models for code generation:
 
@@ -146,7 +146,7 @@ AlphaEvolve supports the latest LLM models for code generation:
 - **gemini-2.5-pro**: Advanced capabilities
 - **Vertex AI**: Same models via Google Cloud
 
-## 🏗️ Core Components
+## Core Components
 
 1. **Task Definition & Code Parsing** (`task_utils.py`) 
    - Defines task specifications
@@ -196,7 +196,7 @@ AlphaEvolve supports the latest LLM models for code generation:
     - CompositeDiversityMetric with configurable weights and detailed scoring
     - Performance-optimized implementations for large archive analysis
 
-## 🧪 Testing
+## Testing
 
 AlphaEvolve includes a comprehensive test suite with 371 tests covering all components:
 
@@ -224,7 +224,7 @@ pytest -xvs tests/test_advanced_map_elites.py
 pytest -xvs tests/test_feature_extraction.py tests/test_feature_configuration.py
 ```
 
-## 📚 Documentation
+## Documentation
 
 Full documentation is available at `docs/` and can be viewed with:
 
@@ -238,7 +238,7 @@ Key documentation:
 - [Configuration Reference](docs/user-guide/configuration-reference.md)
 - [API Reference](docs/api-reference/)
 
-## 🔮 Future Development
+## Future Development
 
 See the [TODO.md](TODO.md) file for planned enhancements, including:
 
@@ -253,10 +253,6 @@ See the [TODO.md](TODO.md) file for planned enhancements, including:
 - ✅ ~~Advanced MAP-Elites with sophisticated features~~ (Completed: CVT, adaptive, hierarchical archives with AST-based feature extraction)
 - Enhanced distributed evolution with island model implementation
 
-## 📄 License
-
-[Insert License Information Here]
-
-## 📖 References
+## References
 
 - AlphaEvolve paper (see `paper/AlphaEvolve.pdf`)
