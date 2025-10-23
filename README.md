@@ -2,9 +2,6 @@
 
 A weekend ripoff of Google's paper.
 
-*<begin Claude emoji-garble>*
-
-
 AlphaEvolve is a Python-based system that combines evolutionary algorithms with Large Language Models (LLMs) to optimize and evolve code. It uses a MAP-Elites evolutionary algorithm to maintain a diverse population of code variants while optimizing for performance and other features.
 
 ## Overview
@@ -27,7 +24,7 @@ AlphaEvolve requires Python 3.12 or newer.
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-username/alphaevolve.git
+git clone https://github.com/your-trevorprater/alphaevolve.git
 cd alphaevolve
 
 # Install using uv (recommended)
