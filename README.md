@@ -128,23 +128,9 @@ See `config/alphaevolve.example.yaml` for all available options.
 
 ## Supported LLM Providers
 
-AlphaEvolve supports the latest LLM models for code generation:
+Google, Anthropic, OpenAI
 
-### OpenAI
-- **o4** / **o4-mini**: Most advanced reasoning models
-- **o3**: High-performance reasoning model
-- **o1** / **o1-mini**: Production reasoning models
-- **gpt-4** / **gpt-4o**: Standard GPT-4 models
-
-### Anthropic
-- **claude-opus-4**: Most capable model with thinking support
-- **claude-sonnet-4**: Balanced model with thinking support
-- **claude-3-5-sonnet-v2**: Fast, efficient model
-
-### Google
-- **gemini-2.5-flash**: Fast, efficient model
-- **gemini-2.5-pro**: Advanced capabilities
-- **Vertex AI**: Same models via Google Cloud
+**TODO**: xAI (grok-code-fast-1 is the perfect model for this repo ca. 2025)
 
 ## Core Components
 
