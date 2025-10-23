@@ -24,7 +24,7 @@ AlphaEvolve requires Python 3.12 or newer.
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-trevorprater/alphaevolve.git
+git clone https://github.com/trevorprater/alphaevolve.git
 cd alphaevolve
 
 # Install using uv (recommended)
