@@ -1,7 +1,5 @@
 # AlphaEvolve
 
-A weekend ripoff of Google's paper.
-
 AlphaEvolve is a Python-based system that combines evolutionary algorithms with Large Language Models (LLMs) to optimize and evolve code. It uses a MAP-Elites evolutionary algorithm to maintain a diverse population of code variants while optimizing for performance and other features.
 
 ## Overview
